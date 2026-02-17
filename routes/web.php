@@ -64,6 +64,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
         Route::post('/logout', [App\Http\Controllers\Admin\Auth\LoginController::class, 'logout'])->name('logout');
 
+        Route::get('/modulos', [App\Http\Controllers\Admin\ModuleController::class, 'index'])->name('index');
+        Route::get('/modulos/create', [App\Http\Controllers\Admin\ModuleController::class, 'create'])->name('admin.modules.create');
         // Gestión de personal
         Route::resource('personal', App\Http\Controllers\Admin\StaffController::class);
 

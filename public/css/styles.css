@@ -1,0 +1,345 @@
+/* ===== VARIABLES GLOBALES ===== */
+:root {
+    /* Colores principales */
+    --color-primary: #667eea;
+    --color-primary-dark: #5a67d8;
+    --color-secondary: #764ba2;
+    --color-admin: #0066cc;
+    --color-admin-dark: #0052a3;
+    --color-staff: #16a34a;
+    --color-staff-dark: #15803d;
+
+    /* Colores de fondo */
+    --bg-client: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --bg-admin: #f5f5f5;
+    --bg-staff: #f0f9ff;
+
+    /* Colores de alerta */
+    --error-bg: #fee;
+    --error-color: #c33;
+    --error-border: #c33;
+    --success-bg: #d4edda;
+    --success-color: #155724;
+    --success-border: #28a745;
+    --info-bg: #e6f3ff;
+    --info-color: #0066cc;
+    --info-border: #b8daff;
+
+    /* Sombras */
+    --shadow-sm: 0 2px 10px rgba(0,0,0,0.1);
+    --shadow-md: 0 10px 25px rgba(0,0,0,0.1);
+    --shadow-lg: 0 20px 40px rgba(0,0,0,0.2);
+
+    /* Bordes */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 20px;
+}
+
+/* ===== RESET Y ESTILOS BASE ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== CONTENEDORES PRINCIPALES ===== */
+.container {
+    width: 100%;
+    padding: 20px;
+}
+
+.login-container,
+.login-box {
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 40px;
+}
+
+/* ===== TIPOGRAFÍA ===== */
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+    font-size: 16px;
+}
+
+/* ===== FORMULARIOS ===== */
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* ===== CHECKBOX ===== */
+.remember-forgot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.remember,
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.remember input,
+.checkbox-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+.remember label,
+.checkbox-group label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.forgot-link {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+/* ===== BOTONES ===== */
+button {
+    width: 100%;
+    padding: 14px;
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+/* Botón para clientes */
+.client-btn {
+    background: var(--color-primary);
+}
+
+.client-btn:hover {
+    background: var(--color-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* Botón para administradores */
+.admin-btn {
+    background-color: var(--color-admin);
+}
+
+.admin-btn:hover {
+    background-color: var(--color-admin-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 102, 204, 0.3);
+}
+
+/* Botón para staff */
+.staff-btn {
+    background-color: var(--color-staff);
+}
+
+.staff-btn:hover {
+    background-color: var(--color-staff-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(22, 163, 74, 0.3);
+}
+
+button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+}
+
+/* ===== ALERTAS ===== */
+.alert {
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.alert-error {
+    background: var(--error-bg);
+    color: var(--error-color);
+    border: 1px solid #fcc;
+    border-left: 4px solid var(--error-border);
+}
+
+.alert-success {
+    background: var(--success-bg);
+    color: var(--success-color);
+    border: 1px solid #c3e6cb;
+    border-left: 4px solid var(--success-border);
+}
+
+.alert-info {
+    background: var(--info-bg);
+    color: var(--info-color);
+    border: 1px solid var(--info-border);
+    border-left: 4px solid var(--info-color);
+}
+
+.alert ul {
+    margin-left: 20px;
+}
+
+.error {
+    color: #e74c3c;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+/* ===== ENLACES ===== */
+.back-link {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.back-link a,
+.back-home a {
+    color: #666;
+    text-decoration: none;
+    font-size: 14px;
+    display: inline-block;
+    transition: color 0.3s;
+}
+
+.back-link a:hover,
+.back-home a:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+.register-link {
+    text-align: center;
+    margin-top: 20px;
+    color: #666;
+    font-size: 14px;
+}
+
+.register-link a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
+}
+
+.back-home {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 13px;
+}
+
+/* ===== BACKGROUNDS ESPECÍFICOS ===== */
+/* Cliente */
+body.client-login {
+    background: var(--bg-client);
+}
+
+/* Administrador */
+body.admin-login {
+    background: var(--bg-admin);
+}
+
+/* Staff */
+body.staff-login {
+    background: var(--bg-staff);
+}
+
+/* ===== VARIACIONES DE COLORES POR ROL ===== */
+/* Admin específico */
+.login-box.admin h1 {
+    color: #333;
+    font-weight: 500;
+}
+
+.login-box.admin input:focus {
+    border-color: var(--color-admin);
+    box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+/* Staff específico */
+.login-box.staff input:focus {
+    border-color: var(--color-staff);
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 480px) {
+    .login-container,
+    .login-box {
+        padding: 30px 20px;
+    }
+
+    h1 {
+        font-size: 24px;
+    }
+
+    .remember-forgot {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+}
