@@ -37,7 +37,7 @@
                     </li>
 
                     <!-- Módulos dinámicos -->
-                    @foreach($modules as $module)
+                    @forelse($modules ?? [] as $module)
                         @if($module->children->isNotEmpty())
                             <!-- Módulo con submódulos -->
                             <li x-data="{ open: {{ request()->is($module->route.'*') ? 'true' : 'false' }} }">

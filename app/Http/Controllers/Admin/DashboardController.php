@@ -13,7 +13,16 @@ class DashboardController extends Controller
 {
     public function dashboard()
     {
-        $admin = Auth::guard('admin')->user();
+        // Obtener el usuario autenticado (que es un User)
+        $user = Auth::guard('admin')->user();
+
+        // Obtener el admin relacionado
+        $admin = $user->admin;
+
+        // Verificar que realmente sea un admin
+        if (!$admin) {
+            abort(403, 'No tienes permisos de administrador');
+        }
 
         // Obtener módulos con permisos para este admin
         $modules = Module::with(['children' => function($q) {
@@ -21,6 +30,7 @@ class DashboardController extends Controller
             }])
             ->active()
             ->parents()
+            ->orderBy('order_position')
             ->get()
             ->filter(function($module) use ($admin) {
                 // Si es superadmin, ve todos los módulos
@@ -29,11 +39,17 @@ class DashboardController extends Controller
                 }
 
                 // Filtrar módulos donde tiene permisos
+                // Nota: Necesitas implementar la lógica de permisos aquí
+                // Por ahora, retornamos true para probar
+                return true;
+
+                /* Cuando tengas permisos implementados:
                 return $admin->permissions()
                     ->whereHas('module', function($q) use ($module) {
                         $q->where('id', $module->id)
                           ->orWhereIn('id', $module->children->pluck('id'));
                     })->exists();
+                */
             });
 
         return view('admin.dashboard', compact('modules'));

@@ -1,225 +1,205 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editar Módulo: {{ $module->name }}</title>
-    <link rel="stylesheet" href="{{ asset('css/styles.css') }}">
-    <style>
-        /* Mismos estilos que create.blade.php */
-        .form-container {
-            max-width: 600px;
-            margin: 50px auto;
-            background: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: var(--shadow-md);
-        }
+@extends('layouts.admin.app')
 
-        .form-title {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #333;
-        }
+@section('title', 'Editar Módulo')
+@section('page-title', 'Editar Módulo')
 
-        .form-group {
-            margin-bottom: 20px;
-        }
+@section('content')
+<div class="container mx-auto px-4 py-6">
+    <!-- Cabecera -->
+    <div class="mb-6">
+        <a href="{{ route('admin.modules.index') }}" class="text-indigo-600 hover:text-indigo-900 mb-2 inline-flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Volver a módulos
+        </a>
+        <h1 class="text-2xl font-bold text-gray-800">Editar Módulo: {{ $module->name }}</h1>
+        <p class="text-gray-600 mt-1">Modifique los campos que desea actualizar</p>
+    </div>
 
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
-        }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .checkbox-group input {
-            width: auto;
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 15px;
-            margin-top: 30px;
-        }
-
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            flex: 1;
-        }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--color-primary-dark);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-        }
-
-        .help-text {
-            font-size: 12px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-
-        .permissions-section {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #dee2e6;
-        }
-
-        .permission-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 5px;
-            margin-bottom: 5px;
-        }
-    </style>
-</head>
-<body class="admin-login">
-    <div class="form-container">
-        <h1 class="form-title">Editar Módulo: {{ $module->name }}</h1>
-
-        @if($errors->any())
-            <div class="alert alert-error">
-                <ul>
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <form method="POST" action="{{ route('admin.modules.update', $module) }}">
+    <!-- Formulario -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <form action="{{ route('admin.modules.update', $module) }}" method="POST" class="p-6">
             @csrf
             @method('PUT')
 
-            <div class="form-group">
-                <label for="name">Nombre del Módulo *</label>
-                <input type="text" id="name" name="name" value="{{ old('name', $module->name) }}" required>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Nombre -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Nombre del Módulo <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text"
+                           id="name"
+                           name="name"
+                           value="{{ old('name', $module->name) }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('name') border-red-500 @enderror"
+                           placeholder="Ej: Usuarios, Productos, Ventas...">
+                    @error('name')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Slug -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="slug" class="block text-sm font-medium text-gray-700 mb-2">
+                        Slug <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text"
+                           id="slug"
+                           name="slug"
+                           value="{{ old('slug', $module->slug) }}"
+                           required
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('slug') border-red-500 @enderror"
+                           placeholder="Ej: usuarios, productos, ventas">
+                    <p class="mt-1 text-xs text-gray-500">Identificador único (solo letras minúsculas y guiones bajos)</p>
+                    @error('slug')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Icono -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="icon" class="block text-sm font-medium text-gray-700 mb-2">
+                        Icono (Font Awesome)
+                    </label>
+                    <div class="flex">
+                        <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500">
+                            <i class="fas {{ old('icon', $module->icon ?: 'fa-cube') }}" id="iconPreview"></i>
+                        </span>
+                        <input type="text"
+                               id="icon"
+                               name="icon"
+                               value="{{ old('icon', $module->icon ?: 'fa-cube') }}"
+                               class="flex-1 px-3 py-2 border border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('icon') border-red-500 @enderror"
+                               placeholder="fa-users, fa-box, fa-shopping-cart">
+                    </div>
+                    @error('icon')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Ruta -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="route" class="block text-sm font-medium text-gray-700 mb-2">
+                        Nombre de Ruta
+                    </label>
+                    <input type="text"
+                           id="route"
+                           name="route"
+                           value="{{ old('route', $module->route) }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('route') border-red-500 @enderror"
+                           placeholder="admin.modules.index">
+                    @error('route')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Módulo Padre -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-2">
+                        Módulo Padre
+                    </label>
+                    <select id="parent_id"
+                            name="parent_id"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('parent_id') border-red-500 @enderror">
+                        <option value="">-- Ninguno (Módulo Principal) --</option>
+                        @foreach($parentModules as $parent)
+                            <option value="{{ $parent->id }}" {{ old('parent_id', $module->parent_id) == $parent->id ? 'selected' : '' }}>
+                                {{ $parent->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Seleccione si este módulo depende de otro</p>
+                    @error('parent_id')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Orden -->
+                <div class="col-span-2 md:col-span-1">
+                    <label for="order_position" class="block text-sm font-medium text-gray-700 mb-2">
+                        Posición de Orden
+                    </label>
+                    <input type="number"
+                           id="order_position"
+                           name="order_position"
+                           value="{{ old('order_position', $module->order_position) }}"
+                           min="0"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('order_position') border-red-500 @enderror">
+                    @error('order_position')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Descripción -->
+                <div class="col-span-2">
+                    <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+                        Descripción
+                    </label>
+                    <textarea id="description"
+                              name="description"
+                              rows="4"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent @error('description') border-red-500 @enderror"
+                              placeholder="Descripción del propósito del módulo...">{{ old('description', $module->description) }}</textarea>
+                    @error('description')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Estado -->
+                <div class="col-span-2">
+                    <label class="flex items-center">
+                        <input type="checkbox"
+                               name="is_active"
+                               value="1"
+                               {{ old('is_active', $module->is_active) ? 'checked' : '' }}
+                               class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <span class="ml-2 text-sm text-gray-600">Módulo activo</span>
+                    </label>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="slug">Slug *</label>
-                <input type="text" id="slug" name="slug" value="{{ old('slug', $module->slug) }}" required>
-                <div class="help-text">Identificador único. No debe cambiar si ya tiene permisos asignados</div>
+            <!-- Información adicional sobre submódulos -->
+            @if($module->children->count() > 0)
+            <div class="mt-6 p-4 bg-yellow-50 rounded-lg">
+                <div class="flex items-start">
+                    <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="text-sm text-yellow-700">
+                        <span class="font-medium">Información:</span> Este módulo tiene {{ $module->children->count() }} submódulo(s) asociados.
+                        Los cambios que realice afectarán también a sus submódulos.
+                    </p>
+                </div>
             </div>
+            @endif
 
-            <div class="form-group">
-                <label for="icon">Icono</label>
-                <input type="text" id="icon" name="icon" value="{{ old('icon', $module->icon) }}">
-            </div>
-
-            <div class="form-group">
-                <label for="parent_id">Módulo Padre</label>
-                <select id="parent_id" name="parent_id">
-                    <option value="">-- Ninguno (Módulo Principal) --</option>
-                    @foreach($parentModules ?? [] as $parent)
-                        <option value="{{ $parent->id }}"
-                            {{ old('parent_id', $module->parent_id) == $parent->id ? 'selected' : '' }}>
-                            {{ $parent->name }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="route">Ruta</label>
-                <input type="text" id="route" name="route" value="{{ old('route', $module->route) }}">
-            </div>
-
-            <div class="form-group">
-                <label for="order_position">Orden</label>
-                <input type="number" id="order_position" name="order_position" value="{{ old('order_position', $module->order_position) }}" min="0">
-            </div>
-
-            <div class="form-group">
-                <label for="description">Descripción</label>
-                <textarea id="description" name="description" rows="3">{{ old('description', $module->description) }}</textarea>
-            </div>
-
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="is_active" name="is_active" value="1" {{ old('is_active', $module->is_active) ? 'checked' : '' }}>
-                <label for="is_active">Módulo Activo</label>
-            </div>
-
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Actualizar Módulo</button>
-                <a href="{{ route('admin.modules.index') }}" class="btn btn-secondary">Cancelar</a>
+            <!-- Botones de acción -->
+            <div class="flex justify-end space-x-3 mt-6 pt-6 border-t border-gray-200">
+                <a href="{{ route('admin.modules.index') }}"
+                   class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-150 ease-in-out">
+                    Cancelar
+                </a>
+                <button type="submit"
+                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition duration-150 ease-in-out flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Actualizar Módulo
+                </button>
             </div>
         </form>
-
-        @if($module->permissions->count() > 0)
-            <div class="permissions-section">
-                <h3>Permisos de este módulo</h3>
-                @foreach($module->permissions as $permission)
-                    <div class="permission-item">
-                        <span>{{ $permission->name }}</span>
-                        <span style="color: #6c757d;">{{ $permission->slug }}</span>
-                    </div>
-                @endforeach
-            </div>
-        @endif
     </div>
+</div>
 
-    <script>
-        // Generar slug automáticamente desde el nombre (opcional)
-        document.getElementById('name').addEventListener('keyup', function() {
-            if (!{{ old('slug', $module->slug) ? 'true' : 'false' }}) {
-                const slug = this.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]+/g, '-')
-                    .replace(/^-|-$/g, '');
-
-                document.getElementById('slug').value = slug;
-            }
-        });
-    </script>
-</body>
-</html>
+<script>
+    // Vista previa del icono
+    document.getElementById('icon').addEventListener('input', function() {
+        const iconPreview = document.getElementById('iconPreview');
+        const iconClass = this.value || 'fa-cube';
+        iconPreview.className = 'fas ' + iconClass;
+    });
+</script>
+@endsection
