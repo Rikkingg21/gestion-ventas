@@ -6,16 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Module;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 class ModuleController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        // Obtener todos los módulos con sus relaciones
-        $modules = Module::with(['children', 'parent'])
+        // El middleware ya verificó admin:leer,modules
+        $user = Auth::guard('admin')->user();
+
+        $modules = Module::with(['children', 'parent', 'permisos'])
                         ->orderBy('order_position')
                         ->orderBy('name')
                         ->get();
@@ -23,12 +23,9 @@ class ModuleController extends Controller
         return view('admin.modules.index', compact('modules'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        // Obtener módulos padre para el selector
+        // El middleware ya verificó admin:crear,modules
         $parentModules = Module::whereNull('parent_id')
                             ->orderBy('name')
                             ->get();
@@ -36,11 +33,10 @@ class ModuleController extends Controller
         return view('admin.modules.create', compact('parentModules'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
+        // El middleware ya verificó admin:crear,modules
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|unique:modules,slug|max:255',
@@ -68,12 +64,10 @@ class ModuleController extends Controller
             ->with('success', 'Módulo creado correctamente.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Module $module)
     {
-        // Obtener módulos padre (excluyendo el actual y sus hijos)
+        // El middleware ya verificó admin:actualizar,modules
+
         $parentModules = Module::whereNull('parent_id')
                                ->where('id', '!=', $module->id)
                                ->whereNotIn('id', $module->children->pluck('id'))
@@ -83,11 +77,10 @@ class ModuleController extends Controller
         return view('admin.modules.edit', compact('module', 'parentModules'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Module $module)
     {
+        // El middleware ya verificó admin:actualizar,modules
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:modules,slug,' . $module->id,
@@ -123,11 +116,10 @@ class ModuleController extends Controller
             ->with('success', 'Módulo actualizado correctamente.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Module $module)
     {
+        // El middleware ya verificó admin:eliminar,modules
+
         // Verificar si tiene hijos
         if ($module->children()->count() > 0) {
             return redirect()
@@ -136,7 +128,7 @@ class ModuleController extends Controller
         }
 
         // Verificar si tiene permisos asociados
-        if ($module->permissions()->count() > 0) {
+        if ($module->permisos()->count() > 0) {
             return redirect()
                 ->route('admin.modules.index')
                 ->with('error', 'No se puede eliminar un módulo que tiene permisos asociados.');
@@ -147,5 +139,12 @@ class ModuleController extends Controller
         return redirect()
             ->route('admin.modules.index')
             ->with('success', 'Módulo eliminado correctamente.');
+    }
+
+    // Método show opcional
+    public function show(Module $module)
+    {
+        // El middleware ya verificó admin:leer,modules
+        return view('admin.modules.show', compact('module'));
     }
 }

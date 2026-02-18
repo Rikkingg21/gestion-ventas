@@ -67,18 +67,34 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Configuración del sistema
         Route::get('/perfil', [App\Http\Controllers\Admin\ProfileController::class, 'index'])->name('profile');
 
-        // Modulos
-        Route::get('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'index'])->name('modules.index');
-        Route::resource('modules', App\Http\Controllers\Admin\ModuleController::class)
-            ->parameters(['modulos' => 'module'])
-            ->names([
-                'create' => 'modules.create',
-                'store' => 'modules.store',
-                'show' => 'modules.show',
-                'edit' => 'modules.edit',
-                'update' => 'modules.update',
-                'destroy' => 'modules.destroy',
-            ]);
+        Route::middleware('admin:leer,modules')->group(function () {
+            Route::get('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'index'])->name('modules.index');
+
+            Route::get('/modules/create', [App\Http\Controllers\Admin\ModuleController::class, 'create'])
+                ->name('modules.create')
+                ->middleware('admin:crear,modules');
+
+            Route::post('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'store'])
+                ->name('modules.store')
+                ->middleware('admin:crear,modules');
+
+            Route::get('/modules/{module}/edit', [App\Http\Controllers\Admin\ModuleController::class, 'edit'])
+                ->name('modules.edit')
+                ->middleware('admin:actualizar,modules');
+
+            Route::put('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'update'])
+                ->name('modules.update')
+                ->middleware('admin:actualizar,modules');
+
+            Route::delete('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'destroy'])
+                ->name('modules.destroy')
+                ->middleware('admin:eliminar,modules');
+
+            // Show puede ser opcional
+            Route::get('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'show'])
+                ->name('modules.show')
+                ->middleware('admin:leer,modules');
+        });
 
         // Gestión de asignación de permisos - requiere permiso de lectura
         Route::middleware('admin:leer,permisos')->group(function () {

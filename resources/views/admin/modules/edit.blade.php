@@ -4,6 +4,16 @@
 @section('page-title', 'Editar Módulo')
 
 @section('content')
+@php
+    $currentUser = Auth::guard('admin')->user();
+    $action = request()->route()->getName() === 'admin.modules.edit' ? 'editar' : 'actualizar';
+@endphp
+
+@if(!$currentUser->canDo($action === 'actualizar' ? 1 : 3, 'modules'))
+    @php
+        abort(403, 'No tienes permiso para ' . $action . ' módulos.');
+    @endphp
+@endif
 <div class="container mx-auto px-4 py-6">
     <!-- Cabecera -->
     <div class="mb-6">
