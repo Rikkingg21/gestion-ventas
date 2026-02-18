@@ -114,6 +114,26 @@ class User extends Authenticatable
 
         return false;
     }
+    public function hasPermission($moduleSlug, $permisoId)
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $module = Module::where('slug', $moduleSlug)->first();
+        if (!$module) {
+            return false;
+        }
+
+        if ($this->isAdmin()) {
+            return $this->admin->permisos()
+                ->where('module_id', $module->id)
+                ->where('permiso_id', $permisoId)
+                ->exists();
+        }
+
+        return false;
+    }
 
     // Verificar si tiene permiso para crear (permiso_id = 1)
     public function canCreate($moduloSlug)
@@ -122,9 +142,25 @@ class User extends Authenticatable
     }
 
     // Verificar si tiene permiso para leer (permiso_id = 2)
-    public function canRead($moduloSlug)
+    public function canRead($moduleSlug)
     {
-        return $this->canDo(2, $moduloSlug);
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $module = Module::where('slug', $moduleSlug)->first();
+        if (!$module) {
+            return false;
+        }
+
+        if ($this->isAdmin()) {
+            return $this->admin->permisos()
+                ->where('module_id', $module->id)
+                ->where('permiso_id', 2) // permiso_id 2 = leer
+                ->exists();
+        }
+
+        return false;
     }
 
     // Verificar si tiene permiso para actualizar (permiso_id = 3)

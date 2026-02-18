@@ -38,7 +38,7 @@ class Admin extends Model
     public function tienePermiso($moduloSlug, $permisoId)
     {
         return $this->permisos()
-            ->whereHas('modulo', function($query) use ($moduloSlug) {
+            ->whereHas('module', function($query) use ($moduloSlug) {
                 $query->where('slug', $moduloSlug);
             })
             ->where('permiso_id', $permisoId)
@@ -49,25 +49,25 @@ class Admin extends Model
     public function getPermisosAgrupados()
     {
         return $this->permisos()
-            ->with(['modulo', 'permiso'])
+            ->with(['module', 'permiso'])
             ->get()
             ->groupBy('modulo.nombre');
     }
 
     // Asignar permiso a admin
-    public function asignarPermiso($moduloId, $permisoId)
+    public function asignarPermiso($moduleId, $permisoId)
     {
         return $this->permisos()->firstOrCreate([
-            'modulo_id' => $moduloId,
+            'module_id' => $moduleId,
             'permiso_id' => $permisoId
         ]);
     }
 
     // Quitar permiso
-    public function quitarPermiso($moduloId, $permisoId)
+    public function quitarPermiso($moduleId, $permisoId)
     {
         return $this->permisos()
-            ->where('modulo_id', $moduloId)
+            ->where('module_id', $moduleId)
             ->where('permiso_id', $permisoId)
             ->delete();
     }

@@ -64,10 +64,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', [App\Http\Controllers\Admin\DashboardController::class, 'dashboard'])->name('dashboard');
         Route::post('/logout', [App\Http\Controllers\Admin\Auth\LoginController::class, 'logout'])->name('logout');
 
-        Route::resource('modulos', App\Http\Controllers\Admin\ModuleController::class)
+        // Configuración del sistema
+        Route::get('/perfil', [App\Http\Controllers\Admin\ProfileController::class, 'index'])->name('profile');
+
+        // Modulos
+        Route::get('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'index'])->name('modules.index');
+        Route::resource('modules', App\Http\Controllers\Admin\ModuleController::class)
             ->parameters(['modulos' => 'module'])
             ->names([
-                'index' => 'modules.index',
                 'create' => 'modules.create',
                 'store' => 'modules.store',
                 'show' => 'modules.show',
@@ -75,15 +79,15 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 'update' => 'modules.update',
                 'destroy' => 'modules.destroy',
             ]);
-        Route::post('/modulos/{module}/permissions', [App\Http\Controllers\Admin\ModuleController::class, 'addPermission'])->name('modules.permissions.add');
-        Route::delete('/modulos/{module}/permissions/{permission}', [App\Http\Controllers\Admin\ModuleController::class, 'removePermission'])->name('modules.permissions.remove');
 
-        // Gestión de asignación de permisos
-        Route::get('/permisos', [App\Http\Controllers\Admin\PermisosController::class, 'index'])->name('permisos.index');
-        Route::post('/permisos/save', [App\Http\Controllers\Admin\PermisosController::class, 'save'])->name('permisos.save');
-        Route::delete('/permisos/{id}', [App\Http\Controllers\Admin\PermisosController::class, 'destroy'])->name('permisos.destroy');
-        Route::get('/permisos/user-permissions', [App\Http\Controllers\Admin\PermisosController::class, 'getUserPermissions'])->name('permisos.user-permissions');
-        Route::get('/permisos/permission-history', [App\Http\Controllers\Admin\PermisosController::class, 'getPermissionHistory'])->name('permisos.history');
+        // Gestión de asignación de permisos - requiere permiso de lectura
+        Route::middleware('admin:leer,permisos')->group(function () {
+            Route::get('/permisos', [App\Http\Controllers\Admin\PermisosController::class, 'index'])->name('permisos.index');
+            Route::post('/permisos/save', [App\Http\Controllers\Admin\PermisosController::class, 'save'])->name('permisos.save')->middleware('admin:actualizar,permisos');
+            Route::delete('/permisos/{id}', [App\Http\Controllers\Admin\PermisosController::class, 'destroy'])->name('permisos.destroy')->middleware('admin:eliminar,permisos');
+            Route::get('/permisos/user-permissions', [App\Http\Controllers\Admin\PermisosController::class, 'getUserPermissions'])->name('permisos.user-permissions');
+            Route::get('/permisos/permission-history', [App\Http\Controllers\Admin\PermisosController::class, 'getPermissionHistory'])->name('permisos.history');
+        });
 
         // Gestión de personal
         Route::resource('personal', App\Http\Controllers\Admin\StaffController::class);

@@ -41,37 +41,6 @@ class PermisosController extends Controller
         return view('admin.permisos.index', compact('admins', 'staffs', 'modules', 'permisos'));
     }
 
-    // Eliminar un permiso específico de un admin o staff
-    public function destroy($id, Request $request)
-    {
-        try {
-            $request->validate([
-                'user_type' => 'required|in:admin,staff'
-            ]);
-
-            if ($request->user_type === 'admin') {
-                $permission = AdminPermiso::findOrFail($id);
-                $permission->delete();
-            } else {
-                $permission = StaffPermiso::findOrFail($id);
-                $permission->delete();
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Permiso eliminado correctamente.'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error al eliminar permiso: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al eliminar el permiso: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
     // Guardar los cambios de permisos para un admin o staff
     public function save(Request $request)
     {
@@ -238,6 +207,113 @@ class PermisosController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error al guardar permisos: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function syncAdminPermissions($adminId, $permisosSeleccionados)
+    {
+        // Obtener permisos actuales
+        $permisosActuales = AdminPermiso::where('admin_id', $adminId)->get();
+
+        // Convertir seleccionados a array asociativo
+        $nuevosPermisos = [];
+        foreach ($permisosSeleccionados as $permiso) {
+            if (isset($permiso['module_id']) && isset($permiso['permiso_id'])) {
+                $key = $permiso['module_id'] . '_' . $permiso['permiso_id'];
+                $nuevosPermisos[$key] = $permiso;
+            }
+        }
+
+        // Eliminar permisos que ya no están seleccionados
+        foreach ($permisosActuales as $permisoActual) {
+            $key = $permisoActual->module_id . '_' . $permisoActual->permiso_id;
+            if (!isset($nuevosPermisos[$key])) {
+                $permisoActual->delete();
+            }
+        }
+
+        // Agregar nuevos permisos
+        foreach ($nuevosPermisos as $permiso) {
+            $existe = AdminPermiso::where('admin_id', $adminId)
+                ->where('module_id', $permiso['module_id'])
+                ->where('permiso_id', $permiso['permiso_id'])
+                ->exists();
+
+            if (!$existe) {
+                AdminPermiso::create([
+                    'admin_id' => $adminId,
+                    'module_id' => $permiso['module_id'],
+                    'permiso_id' => $permiso['permiso_id'],
+                    'assigned_by' => Auth::id()
+                ]);
+            }
+        }
+    }
+
+    private function syncStaffPermissions($staffId, $permisosSeleccionados)
+    {
+        $permisosActuales = StaffPermiso::where('staff_id', $staffId)->get();
+
+        $nuevosPermisos = [];
+        foreach ($permisosSeleccionados as $permiso) {
+            if (isset($permiso['module_id']) && isset($permiso['permiso_id'])) {
+                $key = $permiso['module_id'] . '_' . $permiso['permiso_id'];
+                $nuevosPermisos[$key] = $permiso;
+            }
+        }
+
+        foreach ($permisosActuales as $permisoActual) {
+            $key = $permisoActual->module_id . '_' . $permisoActual->permiso_id;
+            if (!isset($nuevosPermisos[$key])) {
+                $permisoActual->delete();
+            }
+        }
+
+        foreach ($nuevosPermisos as $permiso) {
+            $existe = StaffPermiso::where('staff_id', $staffId)
+                ->where('module_id', $permiso['module_id'])
+                ->where('permiso_id', $permiso['permiso_id'])
+                ->exists();
+
+            if (!$existe) {
+                StaffPermiso::create([
+                    'staff_id' => $staffId,
+                    'module_id' => $permiso['module_id'],
+                    'permiso_id' => $permiso['permiso_id'],
+                    'assigned_by' => Auth::id()
+                ]);
+            }
+        }
+    }
+
+    // Eliminar un permiso específico de un admin o staff
+    public function destroy($id, Request $request)
+    {
+        try {
+            $request->validate([
+                'user_type' => 'required|in:admin,staff'
+            ]);
+
+            if ($request->user_type === 'admin') {
+                $permission = AdminPermiso::findOrFail($id);
+                $permission->delete();
+            } else {
+                $permission = StaffPermiso::findOrFail($id);
+                $permission->delete();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Permiso eliminado correctamente.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al eliminar permiso: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar el permiso: ' . $e->getMessage()
             ], 500);
         }
     }

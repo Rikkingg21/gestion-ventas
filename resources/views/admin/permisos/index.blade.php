@@ -4,6 +4,10 @@
 @section('page-title', 'Gestión de Permisos')
 
 @section('content')
+@php
+    $currentUser = Auth::guard('admin')->user();
+@endphp
+
 <div class="py-6">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {{-- Header con estadísticas rápidas --}}
@@ -85,14 +89,16 @@
             </div>
 
             <div class="p-6">
-                {{-- Botón de guardar flotante --}}
-                <div id="bulkAssignBtn" class="fixed bottom-6 right-6 z-50 hidden">
-                    <button type="button"
-                            class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transform transition hover:scale-105">
-                        <i class="fas fa-save mr-2"></i>
-                        Guardar Cambios
-                    </button>
-                </div>
+                {{-- Botón de guardar flotante - Solo si tiene permiso de actualizar --}}
+                @if($currentUser->canUpdate('permisos'))
+                    <div id="bulkAssignBtn" class="fixed bottom-6 right-6 z-50 hidden">
+                        <button type="button"
+                                class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transform transition hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>
+                            Guardar Cambios
+                        </button>
+                    </div>
+                @endif
 
                 {{-- Panel de Administradores --}}
                 <div id="admin-panel" class="tab-panel">
@@ -156,9 +162,20 @@
                                                 <div class="text-xs text-green-600 mt-1">
                                                     <i class="fas fa-check-circle"></i> Todos los permisos
                                                 </div>
-                                            @else
-                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+
+                                            @elseif($admin->nivel === 'admin')
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                                                     <i class="fas fa-user-tie mr-1"></i> Admin
+                                                </span>
+
+                                            @elseif($admin->nivel === 'soporte')
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                                    <i class="fas fa-bolt mr-1"></i> Soporte
+                                                </span>
+
+                                            @else
+                                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                    <i class="fas fa-question-circle mr-1"></i> No tienes grado
                                                 </span>
                                             @endif
                                         </td>
@@ -173,18 +190,36 @@
                                                             </span>
                                                         </div>
                                                     @else
-                                                        <label class="inline-flex items-center cursor-pointer">
-                                                            <input type="checkbox"
-                                                                   class="permission-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                                                   id="admin_{{ $admin->id }}_{{ $module->id }}_{{ $permiso->id }}"
-                                                                   data-user-type="admin"
-                                                                   data-user-id="{{ $admin->id }}"
-                                                                   data-modulo-id="{{ $module->id }}"
-                                                                   data-permiso-id="{{ $permiso->id }}"
-                                                                   {{ $admin->permisos->contains(function($value) use ($module, $permiso) {
-                                                                        return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
-                                                                    }) ? 'checked' : '' }}>
-                                                        </label>
+                                                        @if($currentUser->canUpdate('permisos'))
+                                                            <label class="inline-flex items-center cursor-pointer">
+                                                                <input type="checkbox"
+                                                                       class="permission-checkbox rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                                                       id="admin_{{ $admin->id }}_{{ $module->id }}_{{ $permiso->id }}"
+                                                                       data-user-type="admin"
+                                                                       data-user-id="{{ $admin->id }}"
+                                                                       data-modulo-id="{{ $module->id }}"
+                                                                       data-permiso-id="{{ $permiso->id }}"
+                                                                       {{ $admin->permisos->contains(function($value) use ($module, $permiso) {
+                                                                            return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
+                                                                        }) ? 'checked' : '' }}>
+                                                            </label>
+                                                        @else
+                                                            @if($admin->permisos->contains(function($value) use ($module, $permiso) {
+                                                                return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
+                                                            }))
+                                                                <div class="flex justify-center">
+                                                                    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-100">
+                                                                        <i class="fas fa-check text-indigo-600 text-xs"></i>
+                                                                    </span>
+                                                                </div>
+                                                            @else
+                                                                <div class="flex justify-center">
+                                                                    <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-100">
+                                                                        <i class="fas fa-times text-gray-400 text-xs"></i>
+                                                                    </span>
+                                                                </div>
+                                                            @endif
+                                                        @endif
                                                     @endif
                                                 </td>
                                             @endforeach
@@ -270,18 +305,36 @@
                                         @foreach($modules as $module)
                                             @foreach($permisos as $permiso)
                                                 <td class="px-2 py-4 text-center">
-                                                    <label class="inline-flex items-center cursor-pointer">
-                                                        <input type="checkbox"
-                                                               class="permission-checkbox rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50"
-                                                               id="staff_{{ $staff->id }}_{{ $module->id }}_{{ $permiso->id }}"
-                                                               data-user-type="staff"
-                                                               data-user-id="{{ $staff->id }}"
-                                                               data-modulo-id="{{ $module->id }}"
-                                                               data-permiso-id="{{ $permiso->id }}"
-                                                               {{ $staff->permisos->contains(function($value) use ($module, $permiso) {
-                                                                    return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
-                                                                }) ? 'checked' : '' }}>
-                                                    </label>
+                                                    @if($currentUser->canUpdate('permisos'))
+                                                        <label class="inline-flex items-center cursor-pointer">
+                                                            <input type="checkbox"
+                                                                   class="permission-checkbox rounded border-gray-300 text-emerald-600 shadow-sm focus:border-emerald-300 focus:ring focus:ring-emerald-200 focus:ring-opacity-50"
+                                                                   id="staff_{{ $staff->id }}_{{ $module->id }}_{{ $permiso->id }}"
+                                                                   data-user-type="staff"
+                                                                   data-user-id="{{ $staff->id }}"
+                                                                   data-modulo-id="{{ $module->id }}"
+                                                                   data-permiso-id="{{ $permiso->id }}"
+                                                                   {{ $staff->permisos->contains(function($value) use ($module, $permiso) {
+                                                                        return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
+                                                                    }) ? 'checked' : '' }}>
+                                                        </label>
+                                                    @else
+                                                        @if($staff->permisos->contains(function($value) use ($module, $permiso) {
+                                                            return $value->module_id == $module->id && $value->permiso_id == $permiso->id;
+                                                        }))
+                                                            <div class="flex justify-center">
+                                                                <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-emerald-100">
+                                                                    <i class="fas fa-check text-emerald-600 text-xs"></i>
+                                                                </span>
+                                                            </div>
+                                                        @else
+                                                            <div class="flex justify-center">
+                                                                <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-gray-100">
+                                                                    <i class="fas fa-times text-gray-400 text-xs"></i>
+                                                                </span>
+                                                            </div>
+                                                        @endif
+                                                    @endif
                                                 </td>
                                             @endforeach
                                         @endforeach
@@ -344,7 +397,7 @@
                 </div>
             </div>
             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                <button type="button" id="confirmSave" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                <button type="button" id="confirmSave" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
                     <i class="fas fa-save mr-2"></i>
                     Guardar cambios
                 </button>
@@ -390,7 +443,8 @@ let currentUserType = null;
 let currentUserId = null;
 let permisosSeleccionados = [];
 
-// Detectar cambios en checkboxes
+// Detectar cambios en checkboxes - Solo si tiene permiso de actualizar
+@if($currentUser->canUpdate('permisos'))
 document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
         let userType = this.dataset.userType;
@@ -405,14 +459,15 @@ document.querySelectorAll('.permission-checkbox').forEach(checkbox => {
         actualizarPermisosSeleccionados(userType, userId);
     });
 });
+@endif
 
 function actualizarPermisosSeleccionados(userType, userId) {
     permisosSeleccionados = [];
 
     document.querySelectorAll(`.permission-checkbox[data-user-type="${userType}"][data-user-id="${userId}"]:checked`).forEach(checkbox => {
         permisosSeleccionados.push({
-            module_id: checkbox.dataset.moduloId,
-            permiso_id: checkbox.dataset.permisoId
+            module_id: parseInt(checkbox.dataset.moduloId),
+            permiso_id: parseInt(checkbox.dataset.permisoId)
         });
     });
 }
@@ -453,7 +508,7 @@ document.getElementById('confirmSave').addEventListener('click', function() {
         },
         body: JSON.stringify({
             user_type: currentUserType,
-            user_id: currentUserId,
+            user_id: parseInt(currentUserId),
             permisos: permisosSeleccionados
         })
     })
@@ -473,9 +528,17 @@ document.getElementById('confirmSave').addEventListener('click', function() {
             document.getElementById('bulkAssignBtn').classList.add('hidden');
             currentUserType = null;
             currentUserId = null;
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: data.message || 'Error al guardar los permisos',
+                confirmButtonColor: '#6366F1'
+            });
         }
     })
     .catch(error => {
+        console.error('Error:', error);
         Swal.fire({
             icon: 'error',
             title: 'Error',

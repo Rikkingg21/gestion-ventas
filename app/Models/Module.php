@@ -61,9 +61,9 @@ class Module extends Model
     {
         return $this->children()->count() > 0;
     }
-        public function permisos()
+    public function permisos()
     {
-        return $this->hasMany(Permiso::class);
+        return $this->hasMany(AdminPermiso::class, 'module_id');
     }
 
     public function adminPermisos()

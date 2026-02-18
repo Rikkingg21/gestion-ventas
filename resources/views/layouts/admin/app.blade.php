@@ -15,6 +15,11 @@
     @stack('styles')
 </head>
 <body class="bg-gray-100">
+    @php
+        $currentUser = Auth::guard('admin')->user();
+        $isSuperAdmin = $currentUser && $currentUser->isSuperAdmin();
+    @endphp
+
     <div class="flex h-screen bg-gray-100">
         <!-- Sidebar -->
         <aside class="w-64 bg-indigo-800 text-white flex flex-col">
@@ -27,74 +32,108 @@
             <!-- Módulos de navegación -->
             <nav class="flex-1 overflow-y-auto py-4">
                 <ul class="space-y-2 px-4">
-                    <!-- Dashboard siempre visible -->
+                    <!-- Dashboard siempre visible para todos -->
                     <li>
                         <a href="{{ route('admin.dashboard') }}"
-                           class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-indigo-700' : '' }}">
+                        class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-indigo-700' : '' }}">
                             <i class="fas fa-tachometer-alt w-5"></i>
                             <span>Dashboard</span>
                         </a>
                     </li>
 
-                    <!-- Módulos dinámicos -->
-                    @forelse($modules ?? [] as $module)
-                        @if($module->children->isNotEmpty())
-                            <!-- Módulo con submódulos -->
-                            <li x-data="{ open: {{ request()->is($module->route.'*') ? 'true' : 'false' }} }">
-                                <button @click="open = !open"
-                                        class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-indigo-700 transition-colors">
-                                    <div class="flex items-center space-x-3">
-                                        <i class="fas {{ $module->icon ?: 'fa-folder' }} w-5"></i>
-                                        <span>{{ $module->name }}</span>
-                                    </div>
-                                    <i class="fas fa-chevron-down text-xs transition-transform"
-                                       :class="{ 'transform rotate-180': open }"></i>
-                                </button>
+                    <!-- Módulos dinámicos según permisos -->
+                    @if(isset($menuModules) && $menuModules->count() > 0)
+                        @foreach($menuModules as $module)
+                            @php
+                                // Verificar si el usuario tiene permiso de lectura para este módulo
+                                $canRead = $isSuperAdmin || ($currentUser && $currentUser->canRead($module->slug));
+                                // Verificar si algún hijo tiene permiso de lectura
+                                $hasReadableChildren = $module->children->contains(function($child) use ($currentUser, $isSuperAdmin) {
+                                    return $isSuperAdmin || ($currentUser && $currentUser->canRead($child->slug));
+                                });
 
-                                <!-- Submódulos -->
-                                <ul x-show="open"
-                                    @click.away="open = false"
-                                    class="ml-8 mt-2 space-y-2"
-                                    x-transition:enter="transition ease-out duration-100"
-                                    x-transition:enter-start="transform opacity-0 scale-95"
-                                    x-transition:enter-end="transform opacity-100 scale-100">
-                                    @foreach($module->children as $child)
-                                        <li>
-                                            <a href="{{ route($child->route) }}"
-                                               class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm {{ request()->routeIs($child->route) ? 'bg-indigo-700' : '' }}">
-                                                <i class="fas {{ $child->icon ?: 'fa-circle' }} w-4 text-xs"></i>
-                                                <span>{{ $child->name }}</span>
-                                            </a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </li>
-                        @else
-                            <!-- Módulo simple -->
-                            <li>
-                                <a href=""
-                                   class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors {{ request()->routeIs($module->route) ? 'bg-indigo-700' : '' }}">
-                                    <i class="fas {{ $module->icon ?: 'fa-circle' }} w-5"></i>
-                                    <span>{{ $module->name }}</span>
-                                </a>
-                            </li>
-                        @endif
-                    @endforeach
+                                // Verificar si la URL actual coincide con la ruta del módulo
+                                $isActive = request()->is(ltrim($module->route, '/'));
+                            @endphp
+
+                            @if($canRead || $hasReadableChildren)
+                                @if($module->children->isNotEmpty() && $hasReadableChildren)
+                                    <!-- Módulo con submódulos -->
+                                    <li x-data="{ open: {{ $isActive || $module->children->contains(function($child) {
+                                        return request()->is(ltrim($child->route, '/'));
+                                    }) ? 'true' : 'false' }} }">
+                                        <button @click="open = !open"
+                                                class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                                            <div class="flex items-center space-x-3">
+                                                <i class="fas {{ $module->icon ?: 'fa-folder' }} w-5"></i>
+                                                <span>{{ $module->name }}</span>
+                                            </div>
+                                            <i class="fas fa-chevron-down text-xs transition-transform"
+                                            :class="{ 'transform rotate-180': open }"></i>
+                                        </button>
+
+                                        <!-- Submódulos -->
+                                        <ul x-show="open"
+                                            @click.away="open = false"
+                                            class="ml-8 mt-2 space-y-2"
+                                            x-transition:enter="transition ease-out duration-100"
+                                            x-transition:enter-start="transform opacity-0 scale-95"
+                                            x-transition:enter-end="transform opacity-100 scale-100">
+                                            @foreach($module->children as $child)
+                                                @php
+                                                    $canReadChild = $isSuperAdmin || ($currentUser && $currentUser->canRead($child->slug));
+                                                    $isChildActive = request()->is(ltrim($child->route, '/'));
+                                                @endphp
+                                                @if($canReadChild)
+                                                    <li>
+                                                        <a href="{{ $child->route }}"
+                                                        class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm {{ $isChildActive ? 'bg-indigo-700' : '' }}">
+                                                            <i class="fas {{ $child->icon ?: 'fa-circle' }} w-4 text-xs"></i>
+                                                            <span>{{ $child->name }}</span>
+                                                        </a>
+                                                    </li>
+                                                @endif
+                                            @endforeach
+                                        </ul>
+                                    </li>
+                                @elseif($canRead)
+                                    <!-- Módulo simple -->
+                                    <li>
+                                        <a href="{{ $module->route }}"
+                                        class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors {{ $isActive ? 'bg-indigo-700' : '' }}">
+                                            <i class="fas {{ $module->icon ?: 'fa-circle' }} w-5"></i>
+                                            <span>{{ $module->name }}</span>
+                                        </a>
+                                    </li>
+                                @endif
+                            @endif
+                        @endforeach
+                    @else
+                        <!-- Mensaje cuando no hay módulos -->
+                        <li class="text-indigo-200 text-sm p-2">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            No hay módulos disponibles
+                        </li>
+                    @endif
                 </ul>
             </nav>
 
             <!-- Información del usuario en sidebar -->
             <div class="p-4 border-t border-indigo-700">
                 <div class="flex items-center space-x-3">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode(Auth::guard('admin')->user()->nombre_completo ?? Auth::guard('admin')->user()->username ?? 'Admin') }}&background=4f46e5&color=fff"
+                    <img src="https://ui-avatars.com/api/?name={{ urlencode($currentUser->nombreCompleto ?? $currentUser->username ?? 'Admin') }}&background=4f46e5&color=fff"
                         alt="Avatar"
                         class="w-8 h-8 rounded-full">
                     <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium truncate">
-                            {{ Auth::guard('admin')->user()->nombre_completo ?? Auth::guard('admin')->user()->username ?? 'Admin' }}
+                            {{ $currentUser->nombreCompleto ?? $currentUser->username ?? 'Admin' }}
                         </p>
                         <p class="text-xs text-indigo-200 truncate">
-                            {{ Auth::guard('admin')->user()->admin->nivel ?? 'Administrador' }}
+                            @if($isSuperAdmin)
+                                <i class="fas fa-crown mr-1"></i> Super Admin
+                            @else
+                                {{ $currentUser->admin->nivel ?? 'Administrador' }}
+                            @endif
                         </p>
                     </div>
                 </div>
@@ -119,18 +158,18 @@
                         <!-- Menú de usuario -->
                         <div class="relative" x-data="{ open: false }">
                             <button @click="open = !open" class="flex items-center space-x-2 focus:outline-none">
-                                <img src="https://ui-avatars.com/api/?name={{ Auth::guard('admin')->user()->user->nombres ?? 'Admin' }}&background=4f46e5&color=fff"
+                                <img src="https://ui-avatars.com/api/?name={{ urlencode($currentUser->nombres ?? 'Admin') }}&background=4f46e5&color=fff"
                                      alt="Avatar"
                                      class="w-8 h-8 rounded-full">
                                 <span class="text-sm font-medium text-gray-700">
-                                    {{ Auth::guard('admin')->user()->username ?? Auth::guard('admin')->user()->username ?? 'Admin' }}
+                                    {{ $currentUser->username ?? 'Admin' }}
                                 </span>
                                 <i class="fas fa-chevron-down text-xs text-gray-500"></i>
                             </button>
 
                             <div x-show="open" @click.away="open = false"
                                  class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                <a href="" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                <a href="{{ route('admin.profile') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="fas fa-user mr-2"></i> Mi Perfil
                                 </a>
                                 <form method="POST" action="{{ route('admin.logout') }}">
