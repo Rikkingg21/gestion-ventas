@@ -78,6 +78,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/modulos/{module}/permissions', [App\Http\Controllers\Admin\ModuleController::class, 'addPermission'])->name('modules.permissions.add');
         Route::delete('/modulos/{module}/permissions/{permission}', [App\Http\Controllers\Admin\ModuleController::class, 'removePermission'])->name('modules.permissions.remove');
 
+        // Gestión de asignación de permisos
+        Route::get('/permisos', [App\Http\Controllers\Admin\PermisosController::class, 'index'])->name('permisos.index');
+        Route::post('/permisos/save', [App\Http\Controllers\Admin\PermisosController::class, 'save'])->name('permisos.save');
+        Route::delete('/permisos/{id}', [App\Http\Controllers\Admin\PermisosController::class, 'destroy'])->name('permisos.destroy');
+        Route::get('/permisos/user-permissions', [App\Http\Controllers\Admin\PermisosController::class, 'getUserPermissions'])->name('permisos.user-permissions');
+        Route::get('/permisos/permission-history', [App\Http\Controllers\Admin\PermisosController::class, 'getPermissionHistory'])->name('permisos.history');
+
         // Gestión de personal
         Route::resource('personal', App\Http\Controllers\Admin\StaffController::class);
 

@@ -20,11 +20,7 @@ class Admin extends Model
     {
         return $this->belongsTo(User::class);
     }
-    public function permissions()
-    {
-        return $this->belongsToMany(Permission::class, 'admin_permissions')
-                    ->withTimestamps();
-    }
+
     public function isSuperAdmin()
     {
         return $this->nivel === 'super_admin';
@@ -33,41 +29,46 @@ class Admin extends Model
     {
         return $query->where('is_active', true);
     }
-    //Verificar si tiene un permiso específico
-    public function hasPermission($permissionSlug)
+    public function permisos()
     {
-        if ($this->isSuperAdmin()) {
-            return true; // Super admin tiene todos los permisos
-        }
-
-        return $this->permissions()
-                    ->where('slug', $permissionSlug)
-                    ->exists();
+        return $this->hasMany(AdminPermiso::class);
     }
-    //Verificar si tiene algún permiso de un módulo
-    public function hasAnyPermission($moduleSlug, $actions = [])
-    {
-        if ($this->isSuperAdmin()) {
-            return true;
-        }
 
-        return $this->permissions()
-                    ->whereHas('module', function ($q) use ($moduleSlug) {
-                        $q->where('slug', $moduleSlug);
-                    })
-                    ->when(!empty($actions), function ($q) use ($actions) {
-                        foreach ($actions as $action) {
-                            $q->orWhere('slug', 'LIKE', "%.{$action}");
-                        }
-                    })
-                    ->exists();
-    }
-    //Obtener todos los permisos agrupados por módulo
-    public function getPermissionsGrouped()
+    // Verificar si tiene un permiso específico en un módulo
+    public function tienePermiso($moduloSlug, $permisoId)
     {
-        return $this->permissions()
-                    ->with('module')
-                    ->get()
-                    ->groupBy('module.name');
+        return $this->permisos()
+            ->whereHas('modulo', function($query) use ($moduloSlug) {
+                $query->where('slug', $moduloSlug);
+            })
+            ->where('permiso_id', $permisoId)
+            ->exists();
+    }
+
+    // Obtener todos los permisos del admin agrupados por módulo
+    public function getPermisosAgrupados()
+    {
+        return $this->permisos()
+            ->with(['modulo', 'permiso'])
+            ->get()
+            ->groupBy('modulo.nombre');
+    }
+
+    // Asignar permiso a admin
+    public function asignarPermiso($moduloId, $permisoId)
+    {
+        return $this->permisos()->firstOrCreate([
+            'modulo_id' => $moduloId,
+            'permiso_id' => $permisoId
+        ]);
+    }
+
+    // Quitar permiso
+    public function quitarPermiso($moduloId, $permisoId)
+    {
+        return $this->permisos()
+            ->where('modulo_id', $moduloId)
+            ->where('permiso_id', $permisoId)
+            ->delete();
     }
 }

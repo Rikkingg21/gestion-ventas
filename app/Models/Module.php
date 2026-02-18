@@ -31,11 +31,6 @@ class Module extends Model
         'deleted_at' => 'datetime'
     ];
 
-    // Relación con permisos
-    public function permissions()
-    {
-        return $this->hasMany(Permission::class);
-    }
 
     // Relación con módulo padre
     public function parent()
@@ -66,13 +61,18 @@ class Module extends Model
     {
         return $this->children()->count() > 0;
     }
-
-    //Obtener todos los permisos del módulo agrupados por acción
-    public function getPermissionsGrouped()
+        public function permisos()
     {
-        return $this->permissions->groupBy(function ($permission) {
-            $parts = explode('.', $permission->slug);
-            return end($parts); // Retorna la última parte (create, edit, delete, etc.)
-        });
+        return $this->hasMany(Permiso::class);
+    }
+
+    public function adminPermisos()
+    {
+        return $this->hasMany(AdminPermiso::class);
+    }
+
+    public function staffPermisos()
+    {
+        return $this->hasMany(StaffPermiso::class);
     }
 }
