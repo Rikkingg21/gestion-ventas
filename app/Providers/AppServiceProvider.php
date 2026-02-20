@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use App\View\Composers\AdminMenuComposer;
+use App\View\Composers\StaffMenuComposer;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         View::composer('layouts.admin.app', AdminMenuComposer::class);
+        View::composer('layouts.staff.app', StaffMenuComposer::class);
         // Personalizar la redirección cuando un usuario no autenticado intenta acceder
         // a rutas protegidas
         Route::pattern('client', 'client');

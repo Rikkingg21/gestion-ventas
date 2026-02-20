@@ -31,19 +31,23 @@ Route::prefix('/')->name('client.')->group(function () {
         Route::put('/perfil', [App\Http\Controllers\Client\ProfileController::class, 'update'])->name('profile.update');
     });
 });
-//ruta personal
+
+//ruta staff
 Route::prefix('staff')->name('staff.')->group(function () {
 
-    // Login del personal (público)
+    // Login del staff (público)
     Route::get('/login', [App\Http\Controllers\Staff\Auth\LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [App\Http\Controllers\Staff\Auth\LoginController::class, 'login']);
 
-    // Rutas protegidas para personal
+    // Rutas protegidas para staff
     Route::middleware('auth:staff')->group(function () {
         Route::get('/dashboard', [App\Http\Controllers\Staff\DashboardController::class, 'dashboard'])->name('dashboard');
         Route::post('/logout', [App\Http\Controllers\Staff\Auth\LoginController::class, 'logout'])->name('logout');
 
-        // Módulos del personal
+        // Configuración del sistema
+        Route::get('/perfil', [App\Http\Controllers\Staff\ProfileController::class, 'index'])->name('profile');
+
+        // Módulos del staff
         Route::resource('ventas', App\Http\Controllers\Staff\VentasController::class);
         Route::resource('clientes', App\Http\Controllers\Staff\ClientesController::class);
         Route::resource('productos', App\Http\Controllers\Staff\ProductosController::class);
@@ -52,6 +56,7 @@ Route::prefix('staff')->name('staff.')->group(function () {
         Route::get('/reportes', [App\Http\Controllers\Staff\ReportesController::class, 'index'])->name('reportes');
     });
 });
+
 //ruta administradores
 Route::prefix('admin')->name('admin.')->group(function () {
 
