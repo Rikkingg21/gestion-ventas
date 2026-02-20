@@ -69,31 +69,21 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::middleware('admin:leer,modules')->group(function () {
             Route::get('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'index'])->name('modules.index');
+            Route::get('/modules/create', [App\Http\Controllers\Admin\ModuleController::class, 'create'])->name('modules.create')->middleware('admin:crear,modules');
+            Route::post('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'store'])->name('modules.store')->middleware('admin:crear,modules');
+            Route::get('/modules/{module}/edit', [App\Http\Controllers\Admin\ModuleController::class, 'edit'])->name('modules.edit')->middleware('admin:actualizar,modules');
+            Route::put('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'update'])->name('modules.update')->middleware('admin:actualizar,modules');
+            Route::delete('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'destroy'])->name('modules.destroy')->middleware('admin:eliminar,modules');
+        });
 
-            Route::get('/modules/create', [App\Http\Controllers\Admin\ModuleController::class, 'create'])
-                ->name('modules.create')
-                ->middleware('admin:crear,modules');
-
-            Route::post('/modules', [App\Http\Controllers\Admin\ModuleController::class, 'store'])
-                ->name('modules.store')
-                ->middleware('admin:crear,modules');
-
-            Route::get('/modules/{module}/edit', [App\Http\Controllers\Admin\ModuleController::class, 'edit'])
-                ->name('modules.edit')
-                ->middleware('admin:actualizar,modules');
-
-            Route::put('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'update'])
-                ->name('modules.update')
-                ->middleware('admin:actualizar,modules');
-
-            Route::delete('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'destroy'])
-                ->name('modules.destroy')
-                ->middleware('admin:eliminar,modules');
-
-            // Show puede ser opcional
-            Route::get('/modules/{module}', [App\Http\Controllers\Admin\ModuleController::class, 'show'])
-                ->name('modules.show')
-                ->middleware('admin:leer,modules');
+        Route::middleware('admin:leer,users')->group(function () {
+            Route::get('/users', [App\Http\Controllers\Admin\UserController::class, 'index'])->name('users.index');
+            Route::get('/users/create', [App\Http\Controllers\Admin\UserController::class, 'create'])->name('users.create')->middleware('admin:crear,user');
+            Route::get('/users/search-by-document', [App\Http\Controllers\Admin\UserController::class, 'searchByDocument'])->name('users.search-by-document');
+            Route::post('/users', [App\Http\Controllers\Admin\UserController::class, 'store'])->name('users.store')->middleware('admin:crear,user');
+            Route::get('/users/{user}/edit', [App\Http\Controllers\Admin\UserController::class, 'edit'])->name('users.edit')->middleware('admin:actualizar,user');
+            Route::put('/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'update'])->name('users.update')->middleware('admin:actualizar,user');
+            Route::delete('/usersd/{user}', [App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('users.destroy')->middleware('admin:eliminar,user');
         });
 
         // Gestión de asignación de permisos - requiere permiso de lectura
@@ -103,6 +93,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::delete('/permisos/{id}', [App\Http\Controllers\Admin\PermisosController::class, 'destroy'])->name('permisos.destroy')->middleware('admin:eliminar,permisos');
             Route::get('/permisos/user-permissions', [App\Http\Controllers\Admin\PermisosController::class, 'getUserPermissions'])->name('permisos.user-permissions');
             Route::get('/permisos/permission-history', [App\Http\Controllers\Admin\PermisosController::class, 'getPermissionHistory'])->name('permisos.history');
+        });
+
+        // Gestión de asignación de permisos - requiere permiso de lectura
+        Route::middleware('admin:leer,productos')->group(function () {
+            Route::get('/productos', [App\Http\Controllers\Admin\ProductosController::class, 'index'])->name('productos.index');
+            Route::get('/productos/create', [App\Http\Controllers\Admin\ProductosController::class, 'create'])->name('productos.create')->middleware('admin:crear,productos');
+            Route::post('/productos', [App\Http\Controllers\Admin\ProductosController::class, 'store'])->name('productos.store')->middleware('admin:crear,productos');
+            Route::get('/productos/{producto}/edit', [App\Http\Controllers\Admin\ProductosController::class, 'edit'])->name('productos.edit')->middleware('admin:actualizar,productos');
+            Route::put('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'update'])->name('productos.update')->middleware('admin:actualizar,productos');
+            Route::delete('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'destroy'])->name('productos.destroy')->middleware('admin:eliminar,productos');
         });
 
         // Gestión de personal

@@ -16,7 +16,7 @@ class Module extends Model
         'name',
         'slug',
         'icon',
-        'route',
+        'route', // Ejemplo de como funciona: "/{{mimodulo}}"
         'parent_id',
         'order_position',
         'description',
