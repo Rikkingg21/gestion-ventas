@@ -18,6 +18,8 @@
     @php
         $currentUser = Auth::guard('admin')->user();
         $isSuperAdmin = $currentUser && $currentUser->isSuperAdmin();
+        $guard = 'admin'; // Guard actual
+        $prefix = 'admin'; // Prefijo de la URL
     @endphp
 
     <div class="flex h-screen bg-gray-100">
@@ -46,22 +48,28 @@
                         @foreach($menuModules as $module)
                             @php
                                 // Verificar si el usuario tiene permiso de lectura para este módulo
-                                $canRead = $isSuperAdmin || ($currentUser && $currentUser->canRead($module->slug));
-                                // Verificar si algún hijo tiene permiso de lectura
-                                $hasReadableChildren = $module->children->contains(function($child) use ($currentUser, $isSuperAdmin) {
-                                    return $isSuperAdmin || ($currentUser && $currentUser->canRead($child->slug));
-                                });
+                                $canRead = $isSuperAdmin || ($currentUser && $currentUser->canRead($module->id));
+
+                                // Construir la URL completa según el guard
+                                $moduleUrl = $module->route
+                                    ? url($prefix . '/' . ltrim($module->route, '/'))
+                                    : '#';
 
                                 // Verificar si la URL actual coincide con la ruta del módulo
-                                $isActive = request()->is(ltrim($module->route, '/'));
+                                $isActive = request()->is($prefix . '/' . ltrim($module->route, '/'));
                             @endphp
 
-                            @if($canRead || $hasReadableChildren)
-                                @if($module->children->isNotEmpty() && $hasReadableChildren)
+                            @if($canRead || $module->children->isNotEmpty())
+                                @if($module->children->isNotEmpty())
                                     <!-- Módulo con submódulos -->
-                                    <li x-data="{ open: {{ $isActive || $module->children->contains(function($child) {
-                                        return request()->is(ltrim($child->route, '/'));
-                                    }) ? 'true' : 'false' }} }">
+                                    <li x-data="{
+                                        open: {{
+                                            $isActive ||
+                                            $module->children->contains(function($child) use ($prefix) {
+                                                return request()->is($prefix . '/' . ltrim($child->route, '/'));
+                                            }) ? 'true' : 'false'
+                                        }}
+                                    }">
                                         <button @click="open = !open"
                                                 class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-indigo-700 transition-colors">
                                             <div class="flex items-center space-x-3">
@@ -81,12 +89,15 @@
                                             x-transition:enter-end="transform opacity-100 scale-100">
                                             @foreach($module->children as $child)
                                                 @php
-                                                    $canReadChild = $isSuperAdmin || ($currentUser && $currentUser->canRead($child->slug));
-                                                    $isChildActive = request()->is(ltrim($child->route, '/'));
+                                                    $canReadChild = $isSuperAdmin || ($currentUser && $currentUser->canRead($child->id));
+                                                    $childUrl = $child->route
+                                                        ? url($prefix . '/' . ltrim($child->route, '/'))
+                                                        : '#';
+                                                    $isChildActive = request()->is($prefix . '/' . ltrim($child->route, '/'));
                                                 @endphp
                                                 @if($canReadChild)
                                                     <li>
-                                                        <a href="{{ $child->route }}"
+                                                        <a href="{{ $childUrl }}"
                                                         class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm {{ $isChildActive ? 'bg-indigo-700' : '' }}">
                                                             <i class="fas {{ $child->icon ?: 'fa-circle' }} w-4 text-xs"></i>
                                                             <span>{{ $child->name }}</span>
@@ -99,7 +110,7 @@
                                 @elseif($canRead)
                                     <!-- Módulo simple -->
                                     <li>
-                                        <a href="{{ $module->route }}"
+                                        <a href="{{ $moduleUrl }}"
                                         class="flex items-center space-x-3 p-2 rounded-lg hover:bg-indigo-700 transition-colors {{ $isActive ? 'bg-indigo-700' : '' }}">
                                             <i class="fas {{ $module->icon ?: 'fa-circle' }} w-5"></i>
                                             <span>{{ $module->name }}</span>

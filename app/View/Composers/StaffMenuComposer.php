@@ -10,48 +10,51 @@ class StaffMenuComposer
 {
     public function compose(View $view)
     {
+        // Verificar autenticación con guard staff
         $user = Auth::guard('staff')->user();
 
-        if (!$user) {
+        if (!$user || !$user->staff) {
             return $view->with('menuModules', collect([]));
         }
 
-        // Para staff, obtener módulos donde tiene permiso de lectura
-        $modules = Module::with(['children' => function($query) use ($user) {
-            // Filtrar hijos donde tiene permiso de lectura
-            $query->whereHas('staffPermisos', function($q) use ($user) {
-                $q->where('staff_id', $user->id)
-                  ->where('permiso_id', 2); // permiso_id 2 = leer
-            })->orWhereHas('children.staffPermisos', function($q) use ($user) {
-                // O incluir padres que tengan hijos con permisos
-                $q->where('staff_id', $user->id)
-                  ->where('permiso_id', 2);
-            });
+        $staff = $user->staff;
+
+        // Obtener IDs de módulos donde tiene permiso de lectura (permiso_id = 2)
+        $modulosLecturaIds = $staff->permisos()
+            ->where('permiso_id', 2)
+            ->pluck('module_id')
+            ->toArray();
+
+        // Si no tiene permisos de lectura, retornar colección vacía
+        if (empty($modulosLecturaIds)) {
+            return $view->with('menuModules', collect([]));
+        }
+
+        // Obtener módulos padres con sus hijos permitidos
+        $modules = Module::with(['children' => function($query) use ($modulosLecturaIds) {
+            $query->whereIn('id', $modulosLecturaIds)
+                  ->where('is_active', true)
+                  ->orderBy('order_position');
         }])
         ->where('is_active', true)
         ->whereNull('parent_id')
         ->orderBy('order_position')
         ->get();
 
-        // Filtrar solo módulos padres que tengan al menos un hijo con permiso
-        // o que ellos mismos tengan permiso de lectura
-        $modules = $modules->filter(function($module) use ($user) {
-            // Verificar si el padre tiene permiso directo
-            $hasParentPermission = $module->staffPermisos()
-                ->where('staff_id', $user->id)
-                ->where('permiso_id', 2)
-                ->exists();
+        // Filtrar módulos padres que tengan permiso directo o hijos con permiso
+        $modules = $modules->filter(function($module) use ($modulosLecturaIds) {
+            $hasDirectPermission = in_array($module->id, $modulosLecturaIds);
+            $hasChildrenWithPermission = $module->children->isNotEmpty();
 
-            // Verificar si tiene hijos con permiso
-            $hasChildrenWithPermission = $module->children->isNotEmpty() &&
-                $module->children->contains(function($child) use ($user) {
-                    return $child->staffPermisos()
-                        ->where('staff_id', $user->id)
-                        ->where('permiso_id', 2)
-                        ->exists();
-                });
+            return $hasDirectPermission || $hasChildrenWithPermission;
+        });
 
-            return $hasParentPermission || $hasChildrenWithPermission;
+        // Limpiar hijos no permitidos (por si acaso)
+        $modules->each(function($module) use ($modulosLecturaIds) {
+            if ($module->children->isNotEmpty()) {
+                $hijosPermitidos = $module->children->whereIn('id', $modulosLecturaIds);
+                $module->setRelation('children', $hijosPermitidos);
+            }
         });
 
         $view->with('menuModules', $modules);

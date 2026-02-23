@@ -24,36 +24,47 @@ class AdminMenuComposer
                 ->orderBy('order_position')
                 ->get();
         } else {
-            // Para admin normal, obtener módulos donde tiene permiso de lectura
-            $modules = Module::with(['children' => function($query) use ($user) {
-                // Filtrar hijos donde tiene permiso de lectura
-                $query->whereHas('permisos', function($q) use ($user) {
-                    $q->where('admin_id', $user->admin->id)
-                      ->where('permiso_id', 2); // permiso_id 2 = leer
-                })->orWhereHas('children.permisos', function($q) use ($user) {
-                    // O incluir padres que tengan hijos con permisos
-                    $q->where('admin_id', $user->admin->id)
-                      ->where('permiso_id', 2);
-                });
+            // Obtener el admin relacionado
+            $admin = $user->admin;
+
+            if (!$admin) {
+                return $view->with('menuModules', collect([]));
+            }
+
+            // Obtener IDs de módulos donde tiene permiso de lectura
+            $modulosLecturaIds = $admin->permisos()
+                ->where('permiso_id', 2) // permiso_id 2 = leer
+                ->pluck('module_id')
+                ->toArray();
+
+            // Obtener módulos padres que tengan hijos con permiso de lectura
+            $modules = Module::with(['children' => function($query) use ($modulosLecturaIds) {
+                $query->whereIn('id', $modulosLecturaIds)
+                      ->orderBy('order_position');
             }])
             ->where('is_active', true)
             ->whereNull('parent_id')
             ->orderBy('order_position')
             ->get();
 
-            // Filtrar solo módulos padres que tengan al menos un hijo con permiso
-            // o que ellos mismos tengan permiso de lectura
-            $modules = $modules->filter(function($module) use ($user) {
-                // Verificar si el padre tiene permiso directo
-                $hasParentPermission = $module->permisos()
-                    ->where('admin_id', $user->admin->id)
-                    ->where('permiso_id', 2)
-                    ->exists();
-
-                // Verificar si tiene hijos con permiso
+            // Filtrar solo módulos padres que:
+            // 1. Tengan permiso directo de lectura, o
+            // 2. Tengan al menos un hijo con permiso de lectura
+            $modules = $modules->filter(function($module) use ($modulosLecturaIds) {
+                $hasDirectPermission = in_array($module->id, $modulosLecturaIds);
                 $hasChildrenWithPermission = $module->children->isNotEmpty();
 
-                return $hasParentPermission || $hasChildrenWithPermission;
+                return $hasDirectPermission || $hasChildrenWithPermission;
+            });
+
+            // Para cada módulo, cargar solo los hijos con permiso
+            $modules->each(function($module) use ($modulosLecturaIds) {
+                if ($module->children->isNotEmpty()) {
+                    $module->setRelation(
+                        'children',
+                        $module->children->whereIn('id', $modulosLecturaIds)
+                    );
+                }
             });
         }
 

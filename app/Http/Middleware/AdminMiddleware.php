@@ -5,12 +5,10 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Module;
 
 class AdminMiddleware
 {
-    //Handle an incoming request.
-    public function handle(Request $request, Closure $next, $permission = null, $module = null)
+    public function handle(Request $request, Closure $next, $permission = null, $moduleId = null)
     {
         // Verificar autenticación
         if (!Auth::guard('admin')->check()) {
@@ -34,6 +32,11 @@ class AdminMiddleware
                 ->withErrors(['username' => 'Tu cuenta de administrador está desactivada.']);
         }
 
+        // Si es superadmin, permitir todo sin verificar permisos
+        if ($user->isSuperAdmin()) {
+            return $next($request);
+        }
+
         // Si se requiere un permiso específico
         if ($permission) {
             $permisosMap = [
@@ -49,67 +52,45 @@ class AdminMiddleware
                 abort(403, 'Permiso no válido');
             }
 
-            // Si no se especifica módulo, obtenerlo de la URL actual
-            if (!$module) {
-                // Obtener la ruta actual (ej: /admin/users)
+            // Si no se especificó moduleId, intentar obtenerlo de la URL
+            if (!$moduleId) {
+                // Obtener el path actual
                 $path = $request->path();
 
                 // Eliminar el prefijo 'admin/' si existe
                 if (str_starts_with($path, 'admin/')) {
-                    $path = substr($path, 6); // Eliminar 'admin/'
+                    $path = substr($path, 6);
                 }
 
-                // Obtener el primer segmento de la ruta (users, productos, permisos, etc.)
+                // Obtener el primer segmento
                 $segments = explode('/', $path);
-                $moduleSlug = $segments[0] ?? null;
+                $urlModule = $segments[0] ?? null;
 
-                // Buscar el módulo en la base de datos por su slug o ruta
-                $module = $moduleSlug;
-
-                // Para debugging
-                \Log::info('Verificando permiso', [
-                    'permission' => $permission,
-                    'module_from_url' => $moduleSlug,
-                    'full_path' => $request->path(),
-                    'user' => $user->username
-                ]);
-            }
-
-            // Verificar permiso
-            if (!$user->isSuperAdmin()) {
-                if (!$module) {
-                    \Log::error('No se pudo determinar el módulo', [
-                        'path' => $request->path(),
-                        'url' => $request->url()
-                    ]);
-                    abort(403, 'No se pudo determinar el módulo para verificar permisos.');
-                }
-
-                // Verificar si el módulo existe en la base de datos
-                $moduleExists = Module::where('slug', $module)
-                    ->orWhere('route', '/' . $module)
-                    ->exists();
-
-                if (!$moduleExists) {
-                    \Log::warning('Módulo no encontrado en BD', [
-                        'module' => $module,
-                        'path' => $request->path()
-                    ]);
-                    // Si el módulo no existe, permitir el acceso (para rutas que no requieren permisos)
+                // Si es dashboard, permitir acceso
+                if ($urlModule === 'dashboard') {
                     return $next($request);
                 }
 
-                if (!$user->hasPermission($module, $permisoId)) {
-                    // Para solicitudes AJAX
-                    if ($request->ajax() || $request->wantsJson()) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'No tienes permiso para realizar esta acción.'
-                        ], 403);
-                    }
+                // Si no podemos determinar el módulo, abortar
+                abort(403, 'No se especificó el ID del módulo para verificar permisos.');
+            }
 
-                    abort(403, 'No tienes permiso para acceder a esta página.');
+            // Verificar que moduleId sea un número válido
+            if (!is_numeric($moduleId)) {
+                abort(403, 'El ID del módulo debe ser un número.');
+            }
+
+            // Verificar si tiene el permiso específico usando SOLO IDs
+            if (!$user->hasPermission((int)$moduleId, $permisoId)) {
+                // Para solicitudes AJAX
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No tienes permiso para realizar esta acción.'
+                    ], 403);
                 }
+
+                abort(403, 'No tienes permiso para acceder a esta página.');
             }
         }
 

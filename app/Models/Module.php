@@ -16,7 +16,7 @@ class Module extends Model
         'name',
         'slug',
         'icon',
-        'route', // Ejemplo de como funciona: "/{{mimodulo}}"
+        'route', // Ejemplo: www.miempresa.com/admin/{ruta}
         'parent_id',
         'order_position',
         'description',

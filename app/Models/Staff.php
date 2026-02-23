@@ -28,14 +28,21 @@ class Staff extends Model
     }
 
     // Verificar si tiene un permiso específico en un módulo
-    public function tienePermiso($moduloSlug, $permisoId)
+    public function tienePermiso($moduleId, $permisoId)
     {
         return $this->permisos()
-            ->whereHas('modulo', function($query) use ($moduloSlug) {
-                $query->where('slug', $moduloSlug);
-            })
+            ->where('module_id', $moduleId)
             ->where('permiso_id', $permisoId)
             ->exists();
+    }
+    public function getModulosLectura()
+    {
+        return $this->permisos()
+            ->with('module')
+            ->where('permiso_id', 2)
+            ->get()
+            ->pluck('module')
+            ->unique('id');
     }
 
     // Obtener todos los permisos del staff agrupados por módulo

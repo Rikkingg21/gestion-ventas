@@ -47,6 +47,16 @@ Route::prefix('staff')->name('staff.')->group(function () {
         // Configuración del sistema
         Route::get('/perfil', [App\Http\Controllers\Staff\ProfileController::class, 'index'])->name('profile');
 
+        // Gestión de asignación de permisos - requiere permiso de lectura
+        Route::middleware('staff:leer,productos')->group(function () {
+            Route::get('/productos', [App\Http\Controllers\Staff\ProductosController::class, 'index'])->name('productos.index');
+            Route::get('/productos/create', [App\Http\Controllers\Staff\ProductosController::class, 'create'])->name('productos.create')->middleware('staff:crear,productos');
+            Route::post('/productos', [App\Http\Controllers\Staff\ProductosController::class, 'store'])->name('productos.store')->middleware('staff:crear,productos');
+            Route::get('/productos/{producto}/edit', [App\Http\Controllers\Staff\ProductosController::class, 'edit'])->name('productos.edit')->middleware('staff:actualizar,productos');
+            Route::put('/productos/{producto}', [App\Http\Controllers\Staff\ProductosController::class, 'update'])->name('productos.update')->middleware('staff:actualizar,productos');
+            Route::delete('/productos/{producto}', [App\Http\Controllers\Staff\ProductosController::class, 'destroy'])->name('productos.destroy')->middleware('staff:eliminar,productos');
+        });
+
         // Módulos del staff
         Route::resource('ventas', App\Http\Controllers\Staff\VentasController::class);
         Route::resource('clientes', App\Http\Controllers\Staff\ClientesController::class);

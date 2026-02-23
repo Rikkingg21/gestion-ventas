@@ -43,60 +43,58 @@
                     <!-- Módulos dinámicos según permisos -->
                     @if(isset($menuModules) && $menuModules->count() > 0)
                         @foreach($menuModules as $module)
-                            @php
-                                // Verificar si el usuario tiene permiso de lectura para este módulo
-                                $canRead = $currentUser && $currentUser->tienePermiso($module->slug, 2);
-                                // Verificar si algún hijo tiene permiso de lectura
-                                $hasReadableChildren = $module->children->contains(function($child) use ($currentUser) {
-                                    return $currentUser && $currentUser->tienePermiso($child->slug, 2);
-                                });
+                           @php
+                                // Verificar si el usuario tiene permiso directo de lectura para este módulo
+                                $canRead = $currentUser && $currentUser->canRead($module->id);
 
                                 // Verificar si la URL actual coincide con la ruta del módulo
                                 $isActive = request()->is(ltrim($module->route, '/'));
+
+                                // Verificar si algún hijo está activo
+                                $hasActiveChild = $module->children->contains(function($child) {
+                                    return request()->is(ltrim($child->route, '/'));
+                                });
                             @endphp
 
-                            @if($canRead || $hasReadableChildren)
-                                @if($module->children->isNotEmpty() && $hasReadableChildren)
-                                    <!-- Módulo con submódulos -->
-                                    <li x-data="{ open: {{ $isActive || $module->children->contains(function($child) {
-                                        return request()->is(ltrim($child->route, '/'));
-                                    }) ? 'true' : 'false' }} }">
-                                        <button @click="open = !open"
-                                                class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-emerald-700 transition-colors">
-                                            <div class="flex items-center space-x-3">
-                                                <i class="fas {{ $module->icon ?: 'fa-folder' }} w-5"></i>
-                                                <span>{{ $module->name }}</span>
-                                            </div>
-                                            <i class="fas fa-chevron-down text-xs transition-transform"
-                                            :class="{ 'transform rotate-180': open }"></i>
-                                        </button>
+                            @if($module->children->isNotEmpty())
+                                <!-- Módulo con submódulos -->
+                                <li x-data="{ open: {{ $canRead || $hasActiveChild ? 'true' : 'false' }} }">
+                                    <button @click="open = !open"
+                                            class="w-full flex items-center justify-between p-2 rounded-lg hover:bg-emerald-700 transition-colors">
+                                        <div class="flex items-center space-x-3">
+                                            <i class="fas {{ $module->icon ?: 'fa-folder' }} w-5"></i>
+                                            <span>{{ $module->name }}</span>
+                                        </div>
+                                        <i class="fas fa-chevron-down text-xs transition-transform"
+                                        :class="{ 'transform rotate-180': open }"></i>
+                                    </button>
 
-                                        <!-- Submódulos -->
-                                        <ul x-show="open"
-                                            @click.away="open = false"
-                                            class="ml-8 mt-2 space-y-2"
-                                            x-transition:enter="transition ease-out duration-100"
-                                            x-transition:enter-start="transform opacity-0 scale-95"
-                                            x-transition:enter-end="transform opacity-100 scale-100">
-                                            @foreach($module->children as $child)
-                                                @php
-                                                    $canReadChild = $currentUser && $currentUser->tienePermiso($child->slug, 2);
-                                                    $isChildActive = request()->is(ltrim($child->route, '/'));
-                                                @endphp
-                                                @if($canReadChild)
-                                                    <li>
-                                                        <a href="{{ $child->route }}"
-                                                        class="flex items-center space-x-3 p-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm {{ $isChildActive ? 'bg-emerald-700' : '' }}">
-                                                            <i class="fas {{ $child->icon ?: 'fa-circle' }} w-4 text-xs"></i>
-                                                            <span>{{ $child->name }}</span>
-                                                        </a>
-                                                    </li>
-                                                @endif
-                                            @endforeach
-                                        </ul>
-                                    </li>
-                                @elseif($canRead)
-                                    <!-- Módulo simple -->
+                                    <!-- Submódulos -->
+                                    <ul x-show="open"
+                                        class="ml-8 mt-2 space-y-2"
+                                        x-transition:enter="transition ease-out duration-100"
+                                        x-transition:enter-start="transform opacity-0 scale-95"
+                                        x-transition:enter-end="transform opacity-100 scale-100">
+                                        @foreach($module->children as $child)
+                                            @php
+                                                $canReadChild = $currentUser && $currentUser->canRead($child->id);
+                                                $isChildActive = request()->is(ltrim($child->route, '/'));
+                                            @endphp
+                                            @if($canReadChild)
+                                                <li>
+                                                    <a href="{{ $child->route }}"
+                                                    class="flex items-center space-x-3 p-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm {{ $isChildActive ? 'bg-emerald-700' : '' }}">
+                                                        <i class="fas {{ $child->icon ?: 'fa-circle' }} w-4 text-xs"></i>
+                                                        <span>{{ $child->name }}</span>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                        @endforeach
+                                    </ul>
+                                </li>
+                            @else
+                                <!-- Módulo simple (solo mostrar si tiene permiso directo) -->
+                                @if($canRead)
                                     <li>
                                         <a href="{{ $module->route }}"
                                         class="flex items-center space-x-3 p-2 rounded-lg hover:bg-emerald-700 transition-colors {{ $isActive ? 'bg-emerald-700' : '' }}">

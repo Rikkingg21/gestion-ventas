@@ -5,6 +5,8 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Admin;
+use App\Models\Staff;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -30,17 +32,13 @@ class User extends Authenticatable
         'password'
     ];
 
-    /**
-     * Los atributos que deben estar ocultos
-     */
+    // Los atributos que deben estar ocultos
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Los atributos que deben ser convertidos
-     */
+    // Los atributos que deben ser convertidos
     protected function casts(): array
     {
         return [
@@ -81,53 +79,52 @@ class User extends Authenticatable
     {
         return trim($this->nombres . ' ' . $this->apellido_paterno . ' ' . $this->apellido_materno);
     }
+
     // Verificar si el usuario tiene un permiso específico
-    public function canDo($permisoId, $moduloSlug = null)
+    public function canDo($permisoId, $moduleId = null)
     {
-        // Super admin tiene todos los permisos
         if ($this->isSuperAdmin()) {
             return true;
         }
 
-        // Verificar permisos de admin
+        // Si es admin
         if ($this->isAdmin()) {
-            if ($moduloSlug) {
-                return $this->admin->tienePermiso($moduloSlug, $permisoId);
+            $query = $this->admin->permisos();
+            if ($moduleId) {
+                $query->where('module_id', $moduleId);
             }
-
-            // Si no se especifica módulo, verificar en cualquier módulo
-            return $this->admin->permisos()
-                ->where('permiso_id', $permisoId)
-                ->exists();
+            return $query->where('permiso_id', $permisoId)->exists();
         }
 
-        // Verificar permisos de staff
+        // Si es staff
         if ($this->staff) {
-            if ($moduloSlug) {
-                return $this->staff->tienePermiso($moduloSlug, $permisoId);
+            $query = $this->staff->permisos();
+            if ($moduleId) {
+                $query->where('module_id', $moduleId);
             }
-
-            return $this->staff->permisos()
-                ->where('permiso_id', $permisoId)
-                ->exists();
+            return $query->where('permiso_id', $permisoId)->exists();
         }
 
         return false;
     }
-    public function hasPermission($moduleSlug, $permisoId)
+    public function hasPermission($moduleId, $permisoId)
     {
         if ($this->isSuperAdmin()) {
             return true;
         }
 
-        $module = Module::where('slug', $moduleSlug)->first();
-        if (!$module) {
-            return false;
-        }
-
+        // Si es admin (y estamos en contexto de admin)
         if ($this->isAdmin()) {
             return $this->admin->permisos()
-                ->where('module_id', $module->id)
+                ->where('module_id', $moduleId)
+                ->where('permiso_id', $permisoId)
+                ->exists();
+        }
+
+        // Si es staff (y estamos en contexto de staff)
+        if ($this->staff) {
+            return $this->staff->permisos()
+                ->where('module_id', $moduleId)
                 ->where('permiso_id', $permisoId)
                 ->exists();
         }
@@ -142,61 +139,69 @@ class User extends Authenticatable
     }
 
     // Verificar si tiene permiso para leer (permiso_id = 2)
-    public function canRead($moduleSlug)
+    public function canRead($moduleId)
+    {
+        return $this->hasPermission($moduleId, 2);
+    }
+
+    // Verificar si tiene permiso para actualizar (permiso_id = 3)
+    public function canUpdate($moduleId)
+    {
+        return $this->hasPermission($moduleId, 3);
+    }
+
+    // Verificar si tiene permiso para eliminar (permiso_id = 4)
+    public function canDelete($moduleId)
+    {
+        return $this->hasPermission($moduleId, 4);
+    }
+
+    // Verificar si tiene permiso para un conjunto de acciones en un módulo
+    public function hasAnyPermission($moduleId, array $permisosIds)
     {
         if ($this->isSuperAdmin()) {
             return true;
         }
 
-        $module = Module::where('slug', $moduleSlug)->first();
-        if (!$module) {
-            return false;
-        }
-
         if ($this->isAdmin()) {
             return $this->admin->permisos()
-                ->where('module_id', $module->id)
-                ->where('permiso_id', 2) // permiso_id 2 = leer
+                ->where('module_id', $moduleId)
+                ->whereIn('permiso_id', $permisosIds)
+                ->exists();
+        }
+
+        if ($this->staff) {
+            return $this->staff->permisos()
+                ->where('module_id', $moduleId)
+                ->whereIn('permiso_id', $permisosIds)
                 ->exists();
         }
 
         return false;
     }
-
-    // Verificar si tiene permiso para actualizar (permiso_id = 3)
-    public function canUpdate($moduloSlug)
-    {
-        return $this->canDo(3, $moduloSlug);
-    }
-
-    // Verificar si tiene permiso para eliminar (permiso_id = 4)
-    public function canDelete($moduloSlug)
-    {
-        return $this->canDo(4, $moduloSlug);
-    }
-
-    // Obtener todos los permisos del usuario
-    public function getAllPermissions()
+    // Verificar si tiene todos los permisos especificados en un módulo
+    public function hasAllPermissions($moduleId, array $permisosIds)
     {
         if ($this->isSuperAdmin()) {
-            // Si es super admin, retornar todos los permisos existentes
-            return Permiso::all();
+            return true;
         }
 
-        $permisos = collect();
+        $userPermisos = [];
 
         if ($this->isAdmin()) {
-            $permisos = $permisos->merge(
-                $this->admin->permisos()->with('permiso')->get()->pluck('permiso')
-            );
+            $userPermisos = $this->admin->permisos()
+                ->where('module_id', $moduleId)
+                ->whereIn('permiso_id', $permisosIds)
+                ->pluck('permiso_id')
+                ->toArray();
+        } elseif ($this->staff) {
+            $userPermisos = $this->staff->permisos()
+                ->where('module_id', $moduleId)
+                ->whereIn('permiso_id', $permisosIds)
+                ->pluck('permiso_id')
+                ->toArray();
         }
 
-        if ($this->staff) {
-            $permisos = $permisos->merge(
-                $this->staff->permisos()->with('permiso')->get()->pluck('permiso')
-            );
-        }
-
-        return $permisos->unique('id');
+        return count(array_intersect($permisosIds, $userPermisos)) === count($permisosIds);
     }
 }
