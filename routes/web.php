@@ -110,6 +110,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/permisos/permission-history', [App\Http\Controllers\Admin\PermisosController::class, 'getPermissionHistory'])->name('permisos.history');
         });
 
+        // Gestión de asignación de categorias - requiere permiso de lectura
+        Route::middleware('admin:leer,categorias')->group(function () {
+            Route::get('/categorias', [App\Http\Controllers\Admin\CategoriasController::class, 'index'])->name('categorias.index');
+            Route::get('/categorias/create', [App\Http\Controllers\Admin\CategoriasController::class, 'create'])->name('categorias.create')->middleware('admin:crear,categorias');
+            Route::post('/categorias', [App\Http\Controllers\Admin\CategoriasController::class, 'store'])->name('categorias.store')->middleware('admin:crear,categorias');
+            Route::get('/categorias/{categoria}/edit', [App\Http\Controllers\Admin\CategoriasController::class, 'edit'])->name('categorias.edit')->middleware('admin:actualizar,categorias');
+            Route::put('/categorias/{categoria}', [App\Http\Controllers\Admin\CategoriasController::class, 'update'])->name('categorias.update')->middleware('admin:actualizar,categorias');
+            Route::delete('/categorias/{categoria}', [App\Http\Controllers\Admin\CategoriasController::class, 'destroy'])->name('categorias.destroy')->middleware('admin:eliminar,categorias');
+        });
+
         // Gestión de asignación de permisos - requiere permiso de lectura
         Route::middleware('admin:leer,productos')->group(function () {
             Route::get('/productos', [App\Http\Controllers\Admin\ProductosController::class, 'index'])->name('productos.index');
