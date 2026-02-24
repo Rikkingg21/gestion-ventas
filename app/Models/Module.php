@@ -20,11 +20,13 @@ class Module extends Model
         'parent_id',
         'order_position',
         'description',
+        'is_public',
         'is_active'
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_public' => 'boolean',
         'order_position' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
