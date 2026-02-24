@@ -148,181 +148,181 @@ class ProductosController extends Controller
         return view('admin.productos.edit', compact('producto', 'categorias', 'imagenesExistentes'));
     }
 
-public function update(Request $request, $id)
-{
-    $producto = Producto::findOrFail($id);
+    public function update(Request $request, $id)
+    {
+        $producto = Producto::findOrFail($id);
 
-    $rules = [
-        'categoria_id' => 'required|exists:categorias,id',
-        'nombre' => 'required|string|max:255',
-        'descripcion' => 'nullable|string',
-        'precioUSD' => 'required|numeric|min:0',
-        'precioLocal' => 'required|numeric|min:0',
-        'aplica_descuento' => 'boolean',
-        'tipo_producto' => 'required|in:fisico,digital',
-        'imagenes_nuevas' => 'nullable|array|max:5',
-        'imagenes_nuevas.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-        'imagenes_eliminar' => 'nullable|array',
-        'imagenes_eliminar.*' => 'integer|between:1,5',
-        'is_active' => 'boolean'
-    ];
-
-    // Reglas específicas según tipo
-    if ($request->tipo_producto === 'fisico') {
-        $rules['sku'] = [
-            'required',
-            'string',
-            Rule::unique('productos')->ignore($producto->id)
+        $rules = [
+            'categoria_id' => 'required|exists:categorias,id',
+            'nombre' => 'required|string|max:255',
+            'descripcion' => 'nullable|string',
+            'precioUSD' => 'required|numeric|min:0',
+            'precioLocal' => 'required|numeric|min:0',
+            'aplica_descuento' => 'boolean',
+            'tipo_producto' => 'required|in:fisico,digital',
+            'imagenes_nuevas' => 'nullable|array|max:5',
+            'imagenes_nuevas.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'imagenes_eliminar' => 'nullable|array',
+            'imagenes_eliminar.*' => 'integer|between:1,5',
+            'is_active' => 'boolean'
         ];
-        $rules['stock'] = 'required|integer|min:0';
-        $rules['stock_minimo'] = 'nullable|integer|min:0';
-    } else {
-        $rules['url_recurso'] = 'required|url';
-    }
 
-    $validator = Validator::make($request->all(), $rules);
-
-    if ($validator->fails()) {
-        return redirect()->back()
-            ->withErrors($validator)
-            ->withInput();
-    }
-
-    $data = $request->all();
-    $data['aplica_descuento'] = $request->has('aplica_descuento');
-    $data['is_active'] = $request->has('is_active');
-
-    // ===== Manejar eliminación de imágenes existentes =====
-    // Inicializar todas las posiciones de imagen como null para luego sobrescribir
-    for ($i = 1; $i <= 5; $i++) {
-        $data['imagen_url_' . $i] = null;
-    }
-
-    // Primero, mantener las imágenes existentes que NO se eliminarán
-    for ($i = 1; $i <= 5; $i++) {
-        $campo = 'imagen_url_' . $i;
-        if ($producto->$campo) {
-            $data[$campo] = $producto->$campo;
-        }
-    }
-
-    // Procesar imágenes a eliminar
-    $imagenesEliminar = [];
-
-    // Verificar si hay imágenes para eliminar
-    if ($request->has('imagenes_eliminar')) {
-        // Si viene como string JSON (del formulario)
-        if (is_string($request->imagenes_eliminar) && !empty($request->imagenes_eliminar)) {
-            $imagenesEliminar = json_decode($request->imagenes_eliminar, true) ?? [];
-        }
-        // Si viene como array
-        elseif (is_array($request->imagenes_eliminar)) {
-            $imagenesEliminar = $request->imagenes_eliminar;
-        }
-    }
-
-    // Eliminar las imágenes marcadas
-    if (!empty($imagenesEliminar)) {
-        foreach ($imagenesEliminar as $posicion) {
-            $campo = 'imagen_url_' . $posicion;
-            if ($producto->$campo) {
-                // Eliminar archivo físico
-                $rutaCompleta = public_path($producto->$campo);
-                if (file_exists($rutaCompleta)) {
-                    unlink($rutaCompleta);
-                }
-                // Eliminar referencia en BD
-                $data[$campo] = null;
-            }
-        }
-    }
-
-    // ===== Manejar subida de nuevas imágenes =====
-    $erroresImagenes = [];
-
-    if ($request->hasFile('imagenes_nuevas')) {
-        // Encontrar posiciones disponibles (1-5)
-        $posicionesOcupadas = [];
-        for ($i = 1; $i <= 5; $i++) {
-            $campo = 'imagen_url_' . $i;
-            if (!empty($data[$campo])) {
-                $posicionesOcupadas[] = $i;
-            }
+        // Reglas específicas según tipo
+        if ($request->tipo_producto === 'fisico') {
+            $rules['sku'] = [
+                'required',
+                'string',
+                Rule::unique('productos')->ignore($producto->id)
+            ];
+            $rules['stock'] = 'required|integer|min:0';
+            $rules['stock_minimo'] = 'nullable|integer|min:0';
+        } else {
+            $rules['url_recurso'] = 'required|url';
         }
 
-        $posicionesDisponibles = array_values(array_diff(range(1, 5), $posicionesOcupadas));
-        $nuevasImagenes = $request->file('imagenes_nuevas');
+        $validator = Validator::make($request->all(), $rules);
 
-        // Verificar si hay posiciones disponibles
-        if (empty($posicionesDisponibles)) {
+        if ($validator->fails()) {
             return redirect()->back()
-                ->withErrors(['imagenes_nuevas' => 'No hay espacio para más imágenes. Máximo 5 imágenes permitidas.'])
+                ->withErrors($validator)
                 ->withInput();
         }
 
-        $contador = 0;
-        foreach ($nuevasImagenes as $index => $imagen) {
-            // Verificar que todavía hay posiciones disponibles
-            if (!isset($posicionesDisponibles[$contador])) {
-                $erroresImagenes[] = "No hay suficiente espacio para todas las imágenes. Algunas no se pudieron subir.";
-                break;
+        $data = $request->all();
+        $data['aplica_descuento'] = $request->has('aplica_descuento');
+        $data['is_active'] = $request->has('is_active');
+
+        // ===== Manejar eliminación de imágenes existentes =====
+        // Inicializar todas las posiciones de imagen como null para luego sobrescribir
+        for ($i = 1; $i <= 5; $i++) {
+            $data['imagen_url_' . $i] = null;
+        }
+
+        // Primero, mantener las imágenes existentes que NO se eliminarán
+        for ($i = 1; $i <= 5; $i++) {
+            $campo = 'imagen_url_' . $i;
+            if ($producto->$campo) {
+                $data[$campo] = $producto->$campo;
+            }
+        }
+
+        // Procesar imágenes a eliminar
+        $imagenesEliminar = [];
+
+        // Verificar si hay imágenes para eliminar
+        if ($request->has('imagenes_eliminar')) {
+            // Si viene como string JSON (del formulario)
+            if (is_string($request->imagenes_eliminar) && !empty($request->imagenes_eliminar)) {
+                $imagenesEliminar = json_decode($request->imagenes_eliminar, true) ?? [];
+            }
+            // Si viene como array
+            elseif (is_array($request->imagenes_eliminar)) {
+                $imagenesEliminar = $request->imagenes_eliminar;
+            }
+        }
+
+        // Eliminar las imágenes marcadas
+        if (!empty($imagenesEliminar)) {
+            foreach ($imagenesEliminar as $posicion) {
+                $campo = 'imagen_url_' . $posicion;
+                if ($producto->$campo) {
+                    // Eliminar archivo físico
+                    $rutaCompleta = public_path($producto->$campo);
+                    if (file_exists($rutaCompleta)) {
+                        unlink($rutaCompleta);
+                    }
+                    // Eliminar referencia en BD
+                    $data[$campo] = null;
+                }
+            }
+        }
+
+        // ===== Manejar subida de nuevas imágenes =====
+        $erroresImagenes = [];
+
+        if ($request->hasFile('imagenes_nuevas')) {
+            // Encontrar posiciones disponibles (1-5)
+            $posicionesOcupadas = [];
+            for ($i = 1; $i <= 5; $i++) {
+                $campo = 'imagen_url_' . $i;
+                if (!empty($data[$campo])) {
+                    $posicionesOcupadas[] = $i;
+                }
             }
 
-            $posicion = $posicionesDisponibles[$contador];
+            $posicionesDisponibles = array_values(array_diff(range(1, 5), $posicionesOcupadas));
+            $nuevasImagenes = $request->file('imagenes_nuevas');
 
-            try {
-                // Validar la imagen individualmente (aunque ya se validó con las reglas)
-                if (!$imagen->isValid()) {
-                    $erroresImagenes[] = "La imagen " . ($index + 1) . " no es válida.";
+            // Verificar si hay posiciones disponibles
+            if (empty($posicionesDisponibles)) {
+                return redirect()->back()
+                    ->withErrors(['imagenes_nuevas' => 'No hay espacio para más imágenes. Máximo 5 imágenes permitidas.'])
+                    ->withInput();
+            }
+
+            $contador = 0;
+            foreach ($nuevasImagenes as $index => $imagen) {
+                // Verificar que todavía hay posiciones disponibles
+                if (!isset($posicionesDisponibles[$contador])) {
+                    $erroresImagenes[] = "No hay suficiente espacio para todas las imágenes. Algunas no se pudieron subir.";
+                    break;
+                }
+
+                $posicion = $posicionesDisponibles[$contador];
+
+                try {
+                    // Validar la imagen individualmente (aunque ya se validó con las reglas)
+                    if (!$imagen->isValid()) {
+                        $erroresImagenes[] = "La imagen " . ($index + 1) . " no es válida.";
+                        $contador++;
+                        continue;
+                    }
+
+                    $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
+
+                    // Intentar mover la imagen
+                    if (!$imagen->move(public_path('storage/productos'), $nombreImagen)) {
+                        $erroresImagenes[] = "Error al subir la imagen " . ($index + 1) . ".";
+                    } else {
+                        $data['imagen_url_' . $posicion] = 'storage/productos/' . $nombreImagen;
+                    }
+
                     $contador++;
-                    continue;
+                } catch (\Exception $e) {
+                    $erroresImagenes[] = "Error al procesar la imagen " . ($index + 1) . ": " . $e->getMessage();
                 }
-
-                $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
-
-                // Intentar mover la imagen
-                if (!$imagen->move(public_path('storage/productos'), $nombreImagen)) {
-                    $erroresImagenes[] = "Error al subir la imagen " . ($index + 1) . ".";
-                } else {
-                    $data['imagen_url_' . $posicion] = 'storage/productos/' . $nombreImagen;
-                }
-
-                $contador++;
-            } catch (\Exception $e) {
-                $erroresImagenes[] = "Error al procesar la imagen " . ($index + 1) . ": " . $e->getMessage();
             }
         }
-    }
 
-    // Si hay errores con las imágenes, redirigir con los errores
-    if (!empty($erroresImagenes)) {
-        return redirect()->back()
-            ->withErrors(['imagenes' => implode(' ', $erroresImagenes)])
-            ->withInput();
-    }
-
-    // Actualizar el producto
-    $producto->update($data);
-
-    // Actualizar stock si es producto físico
-    if ($request->tipo_producto === 'fisico') {
-        if ($producto->stock) {
-            $producto->stock->update([
-                'cantidad' => $request->stock,
-                'stock_minimo' => $request->stock_minimo ?? 0,
-            ]);
-        } else {
-            ProductoStock::create([
-                'producto_id' => $producto->id,
-                'cantidad' => $request->stock,
-                'stock_minimo' => $request->stock_minimo ?? 0,
-            ]);
+        // Si hay errores con las imágenes, redirigir con los errores
+        if (!empty($erroresImagenes)) {
+            return redirect()->back()
+                ->withErrors(['imagenes' => implode(' ', $erroresImagenes)])
+                ->withInput();
         }
-    }
 
-    return redirect()->route('admin.productos.index')
-        ->with('success', 'Producto actualizado exitosamente.');
-}
+        // Actualizar el producto
+        $producto->update($data);
+
+        // Actualizar stock si es producto físico
+        if ($request->tipo_producto === 'fisico') {
+            if ($producto->stock) {
+                $producto->stock->update([
+                    'cantidad' => $request->stock,
+                    'stock_minimo' => $request->stock_minimo ?? 0,
+                ]);
+            } else {
+                ProductoStock::create([
+                    'producto_id' => $producto->id,
+                    'cantidad' => $request->stock,
+                    'stock_minimo' => $request->stock_minimo ?? 0,
+                ]);
+            }
+        }
+
+        return redirect()->route('admin.productos.index')
+            ->with('success', 'Producto actualizado exitosamente.');
+    }
 
     public function destroy($id)
     {
