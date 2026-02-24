@@ -128,6 +128,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/productos/{producto}/edit', [App\Http\Controllers\Admin\ProductosController::class, 'edit'])->name('productos.edit')->middleware('admin:actualizar,productos');
             Route::put('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'update'])->name('productos.update')->middleware('admin:actualizar,productos');
             Route::delete('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'destroy'])->name('productos.destroy')->middleware('admin:eliminar,productos');
+            Route::post('/productos/{producto}/eliminar-imagen', [App\Http\Controllers\Admin\ProductosController::class, 'eliminarImagen'])->name('productos.eliminar-imagen')->middleware('admin:actualizar,productos');
         });
 
         // Gestión de personal

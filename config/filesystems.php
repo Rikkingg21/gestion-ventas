@@ -60,6 +60,13 @@ return [
             'report' => false,
         ],
 
+        'productos' => [
+            'driver' => 'local',
+            'root' => public_path('storage/productos'),
+            'url' => env('APP_URL') . '/storage/productos',
+            'visibility' => 'public',
+        ],
+
     ],
 
     /*
