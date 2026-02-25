@@ -54,7 +54,7 @@ class LoginController extends Controller
 
             $request->session()->regenerate();
 
-            return redirect()->intended(route('client.home'))
+            return redirect()->intended(route('home'))
                 ->with('success', '¡Bienvenido de nuevo, ' . $user->nombres . '!');
         }
 

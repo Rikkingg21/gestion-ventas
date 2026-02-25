@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\Auth\LoginController as AdminLoginController;
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/productos', [ProductosController::class, 'index'])->name('producto.index');
 Route::get('/productos/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
+Route::get('/mis-compras', [ComprasController::class, 'index'])->name('compras.index')->middleware('auth:client');
 Route::get('/nosotros', [ProductosController::class, 'funcion'])->name('nosotros');
 
 //ruta clientes
