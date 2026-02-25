@@ -10,7 +10,7 @@ use App\Http\Controllers\Admin\Auth\LoginController as AdminLoginController;
 //ruta publica
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/productos', [ProductosController::class, 'index'])->name('producto.index');
-Route::get('/producto/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
+Route::get('/productos/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
 Route::get('/nosotros', [ProductosController::class, 'funcion'])->name('nosotros');
 
 //ruta clientes

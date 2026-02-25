@@ -84,4 +84,30 @@ class Producto extends Model
     {
         return $query->where('tipo_producto', $tipo);
     }
+    public function getImageUrl($campo)
+    {
+        $url = $this->$campo;
+        if (!$url) return null;
+
+        // Limpiar la URL
+        $url = str_replace(['/producto/', 'storage/storage/'], ['/', 'storage/'], $url);
+
+        // Si ya es URL completa, devolverla
+        if (filter_var($url, FILTER_VALIDATE_URL)) {
+            return $url;
+        }
+
+        // Si empieza con storage/
+        if (str_starts_with($url, 'storage/')) {
+            return asset($url);
+        }
+
+        // Si empieza con /storage/
+        if (str_starts_with($url, '/storage/')) {
+            return asset(substr($url, 1));
+        }
+
+        // Por defecto
+        return asset('storage/' . ltrim($url, '/'));
+    }
 }

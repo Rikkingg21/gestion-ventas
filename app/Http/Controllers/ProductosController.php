@@ -10,17 +10,18 @@ class ProductosController extends Controller
 {
     public function index()
     {
-        // Obtener categorías con sus productos activos
+        // Obtener categorías activas
         $categorias = Categoria::where('is_active', true)
-            ->with(['productos' => function($query) {
-                $query->active()
-                      ->with('stock')
-                      ->orderBy('nombre');
-            }])
             ->orderBy('nombre')
             ->get();
 
-        return view('client.productos.index', compact('categorias'));
+        // Obtener productos activos con sus relaciones
+        $productos = Producto::active()
+            ->with(['categoria', 'stock'])
+            ->orderBy('nombre')
+            ->get();
+
+        return view('client.productos.index', compact('categorias', 'productos'));
     }
 
     public function funcion()
@@ -34,6 +35,6 @@ class ProductosController extends Controller
             ->active()
             ->findOrFail($id);
 
-        return view('client.productos.producto-detalle', compact('producto'));
+        return view('client.productos.detalle', compact('producto'));
     }
 }
