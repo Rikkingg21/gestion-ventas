@@ -56,6 +56,7 @@ window.actualizarSidebarCarrito = function() {
                 let html = '';
                 data.items.forEach(item => {
                     const tieneDescuento = item.aplica_descuento && item.porcentaje_descuento > 0;
+                    const esDigital = item.tipo_producto === 'digital';
 
                     html += `
                         <div class="cart-item p-3 border-bottom" data-item-id="${item.id}">
@@ -75,7 +76,12 @@ window.actualizarSidebarCarrito = function() {
                                 <!-- Información del producto -->
                                 <div class="flex-grow-1 ms-2">
                                     <div class="d-flex justify-content-between align-items-start">
-                                        <h6 class="mb-1 small fw-bold" style="font-size: 0.8rem;">${item.nombre.substring(0, 30)}${item.nombre.length > 30 ? '...' : ''}</h6>
+                                        <div>
+                                            <h6 class="mb-1 small fw-bold" style="font-size: 0.8rem;">
+                                                ${item.nombre.substring(0, 30)}${item.nombre.length > 30 ? '...' : ''}
+                                            </h6>
+
+                                        </div>
                                         <button class="btn btn-link text-danger p-0 ms-1"
                                                 onclick="eliminarItemCarrito(${item.id})"
                                                 title="Eliminar">
@@ -83,21 +89,31 @@ window.actualizarSidebarCarrito = function() {
                                         </button>
                                     </div>
 
-                                    <!-- Precio y cantidad -->
-                                    <div class="d-flex justify-content-between align-items-center mt-1">
-                                        <div class="d-flex align-items-center">
-                                            <button class="btn btn-sm btn-outline-secondary px-1 py-0"
-                                                    onclick="actualizarCantidad(${item.id}, ${item.cantidad - 1})"
-                                                    ${item.cantidad <= 1 ? 'disabled' : ''}>
-                                                <i class="fas fa-minus" style="font-size: 0.7rem;"></i>
-                                            </button>
-                                            <span class="mx-1 small">${item.cantidad}</span>
-                                            <button class="btn btn-sm btn-outline-secondary px-1 py-0"
-                                                    onclick="actualizarCantidad(${item.id}, ${item.cantidad + 1})"
-                                                    ${item.stock_disponible && item.cantidad >= item.stock_disponible ? 'disabled' : ''}>
-                                                <i class="fas fa-plus" style="font-size: 0.7rem;"></i>
-                                            </button>
-                                        </div>
+                                    <!-- Precio y cantidad - DIFERENTE PARA DIGITAL Y FÍSICO -->
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        ${esDigital ? `
+                                            <!-- Para productos digitales: solo cantidad fija (1) sin controles -->
+                                            <div class="d-flex align-items-center">
+                                                <small class="text-info">
+                                                    <i class="fas fa-info-circle me-1"></i>Producto digital
+                                                </small>
+                                            </div>
+                                        ` : `
+                                            <!-- Para productos físicos: controles de cantidad normales -->
+                                            <div class="d-flex align-items-center">
+                                                <button class="btn btn-sm btn-outline-secondary px-1 py-0"
+                                                        onclick="actualizarCantidad(${item.id}, ${item.cantidad - 1})"
+                                                        ${item.cantidad <= 1 ? 'disabled' : ''}>
+                                                    <i class="fas fa-minus" style="font-size: 0.7rem;"></i>
+                                                </button>
+                                                <span class="mx-1 small">${item.cantidad}</span>
+                                                <button class="btn btn-sm btn-outline-secondary px-1 py-0"
+                                                        onclick="actualizarCantidad(${item.id}, ${item.cantidad + 1})"
+                                                        ${item.stock_disponible && item.cantidad >= item.stock_disponible ? 'disabled' : ''}>
+                                                    <i class="fas fa-plus" style="font-size: 0.7rem;"></i>
+                                                </button>
+                                            </div>
+                                        `}
                                         <span class="small fw-bold text-success">
                                             $${parseFloat(item.subtotal_usd || 0).toFixed(2)}
                                         </span>
@@ -107,7 +123,7 @@ window.actualizarSidebarCarrito = function() {
                                     ${tieneDescuento ? `
                                         <small class="text-warning d-block mt-1" style="font-size: 0.65rem;">
                                             <i class="fas fa-tag me-1"></i>
-                                            -${item.porcentaje_descuento}%
+                                            -${item.porcentaje_descuento}% descuento
                                         </small>
                                     ` : ''}
                                 </div>
@@ -155,7 +171,7 @@ window.actualizarSidebarCarrito = function() {
     });
 };
 
-// Función para actualizar cantidad
+// Función para actualizar cantidad (solo para productos físicos)
 window.actualizarCantidad = function(itemId, nuevaCantidad) {
     if (nuevaCantidad < 1) return;
 
@@ -240,3 +256,10 @@ window.mostrarNotificacion = function(mensaje, tipo = 'success') {
         alertDiv.remove();
     }, 3000);
 };
+
+// Inicializar carrito al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.actualizarSidebarCarrito === 'function') {
+        window.actualizarSidebarCarrito();
+    }
+});

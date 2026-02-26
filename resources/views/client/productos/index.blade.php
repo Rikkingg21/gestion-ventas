@@ -163,7 +163,7 @@
 
                                     <!-- Categoría -->
                                     <div class="mb-2">
-                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                        <span class="badge bg-success bg-opacity-10 text-white">
                                             <i class="fas fa-tag me-1"></i>
                                             {{ $producto->categoria->nombre }}
                                         </span>
@@ -320,30 +320,6 @@
     </div>
 </div>
 
-<!-- Modal para confirmar agregado al carrito -->
-<div class="modal fade" id="cartModal" tabindex="-1" aria-labelledby="cartModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="cartModalLabel">
-                    <i class="fas fa-check-circle me-2"></i>Producto agregado
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <i class="fas fa-check-circle text-success fa-4x mb-3"></i>
-                <p class="mb-0">El producto se ha agregado correctamente al carrito.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Seguir comprando</button>
-                <a href="{{ route('carrito.ver') }}" class="btn btn-success">
-                    <i class="fas fa-shopping-cart me-2"></i>Ir al carrito
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Estilos adicionales -->
 <style>
     .product-card {
@@ -436,7 +412,6 @@
         const searchInput = document.getElementById('searchProduct');
         const products = document.querySelectorAll('.producto-item');
         const addToCartButtons = document.querySelectorAll('.btn-agregar-carrito');
-        const cartModal = new bootstrap.Modal(document.getElementById('cartModal'));
 
         let currentFilter = 'all';
         let currentCategoria = 'all';
@@ -547,8 +522,6 @@
                             window.actualizarSidebarCarrito();
                         }
 
-                        // Mostrar modal de éxito
-                        cartModal.show();
                     } else {
                         if (typeof window.mostrarNotificacion === 'function') {
                             window.mostrarNotificacion(data.error || 'No se pudo agregar el producto', 'danger');

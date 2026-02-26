@@ -36,14 +36,27 @@ class ProductosController extends Controller
     // Agregar producto al carrito
     public function agregarAlCarrito(Request $request, Producto $producto)
     {
-        $request->validate([
-            'cantidad' => 'required|integer|min:1'
-        ]);
+        // Validar cantidad según tipo de producto
+        if ($producto->esDigital()) {
+            // Productos digitales: solo cantidad 1 y no se permite duplicado
+            $cantidad = 1;
+
+            // Validación específica para digitales: no se requiere validar cantidad
+            $request->validate([
+                // Solo validamos que exista el producto, la cantidad es fija
+            ]);
+        } else {
+            // Productos físicos: validar cantidad normalmente
+            $request->validate([
+                'cantidad' => 'required|integer|min:1'
+            ]);
+            $cantidad = $request->cantidad;
+        }
 
         // Validar stock si es producto físico
         if ($producto->esFisico()) {
             $stockActual = $producto->stock->cantidad ?? 0;
-            if ($stockActual < $request->cantidad) {
+            if ($stockActual < $cantidad) {
                 if ($request->wantsJson()) {
                     return response()->json(['error' => 'No hay suficiente stock disponible.'], 400);
                 }
@@ -74,8 +87,18 @@ class ProductosController extends Controller
             ->first();
 
         if ($productoExistente) {
-            // Actualizar cantidad del producto existente
-            $nuevaCantidad = $productoExistente->cantidad + $request->cantidad;
+            if ($producto->esDigital()) {
+                // Productos digitales: no permitir duplicados
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'error' => 'Este producto digital ya está en tu carrito. Solo puedes tener una unidad.'
+                    ], 400);
+                }
+                return back()->with('error', 'Este producto digital ya está en tu carrito.');
+            }
+
+            // Productos físicos: actualizar cantidad
+            $nuevaCantidad = $productoExistente->cantidad + $cantidad;
 
             // Verificar stock si es físico
             if ($producto->esFisico()) {
@@ -99,9 +122,11 @@ class ProductosController extends Controller
                 'precio_adquirido_local' => $precioFinalLocal,
                 'aplica_descuento' => $producto->aplica_descuento,
                 'porcentaje_descuento' => $producto->porcentaje_descuento,
-                'cantidad' => $request->cantidad
+                'cantidad' => $cantidad
             ]);
-            $message = 'Producto agregado al carrito';
+            $message = $producto->esDigital()
+                ? 'Producto digital agregado al carrito'
+                : 'Producto agregado al carrito';
         }
 
         // Actualizar sesión con el ID del carrito
@@ -112,12 +137,49 @@ class ProductosController extends Controller
                 'success' => true,
                 'message' => $message,
                 'total_items' => $carrito->total_items,
-                'total_usd' => $carrito->total_usd
+                'total_usd' => $carrito->total_usd,
+                'tipo_producto' => $producto->tipo_producto // Para información adicional
             ]);
         }
 
         return redirect()->route('productos.index')
             ->with('success', $message);
+    }
+
+    public function actualizarCantidad(Request $request, CarritoProducto $item)
+    {
+        $request->validate([
+            'cantidad' => 'required|integer|min:1'
+        ]);
+
+        // Verificar si es producto digital
+        if ($item->producto->esDigital()) {
+            return response()->json([
+                'error' => 'No puedes cambiar la cantidad de un producto digital. Solo se permite 1 unidad.'
+            ], 400);
+        }
+
+        // Verificar stock si es físico
+        if ($item->producto->esFisico()) {
+            $stockActual = $item->producto->stock->cantidad ?? 0;
+            if ($stockActual < $request->cantidad) {
+                return response()->json([
+                    'error' => 'No hay suficiente stock disponible.'
+                ], 400);
+            }
+        }
+
+        $item->actualizarCantidad($request->cantidad);
+
+        // Obtener el carrito actualizado
+        $carrito = $item->carrito;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cantidad actualizada',
+            'total_items' => $carrito->total_items,
+            'total_usd' => $carrito->total_usd
+        ]);
     }
 
     // Ver carrito
@@ -224,69 +286,6 @@ class ProductosController extends Controller
             'items' => $carrito->productos,
             'totales' => $totales,
             'carrito_id' => $carrito->id
-        ]);
-    }
-
-    // Actualizar cantidad de un producto en el carrito
-    public function actualizarCantidad(Request $request, $productoId)
-    {
-        $request->validate([
-            'cantidad' => 'required|integer|min:1'
-        ]);
-
-        $carrito = $this->obtenerCarritoActual();
-
-        if (!$carrito) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Carrito no encontrado'
-            ], 404);
-        }
-
-        $item = CarritoProducto::where('carrito_id', $carrito->id)
-            ->where('id', $productoId)
-            ->with('producto')
-            ->first();
-
-        if (!$item) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Producto no encontrado en el carrito'
-            ], 404);
-        }
-
-        // Verificar stock si es producto físico
-        if ($item->producto && $item->producto->esFisico()) {
-            $stockActual = $item->producto->stock->cantidad ?? 0;
-            if ($stockActual < $request->cantidad) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'Stock insuficiente',
-                    'stock_disponible' => $stockActual,
-                    'cantidad_actual' => $item->cantidad
-                ], 400);
-            }
-        }
-
-        $item->actualizarCantidad($request->cantidad);
-
-        // Recalcular totales
-        $carrito->refresh();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Cantidad actualizada',
-            'item' => [
-                'id' => $item->id,
-                'cantidad' => $item->cantidad,
-                'subtotal_usd' => $item->subtotal_usd,
-                'subtotal_local' => $item->subtotal_local
-            ],
-            'totales' => [
-                'total_usd' => $carrito->total_usd,
-                'total_local' => $carrito->total_local,
-                'total_items' => $carrito->total_items
-            ]
         ]);
     }
 
