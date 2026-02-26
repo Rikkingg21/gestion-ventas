@@ -9,6 +9,16 @@
         <h3 class="text-lg font-semibold text-gray-800">Editando: {{ $producto->nombre }}</h3>
     </div>
 
+    @if ($errors->any())
+        <div class="mx-6 mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <ul class="list-disc pl-5 text-sm text-red-700">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <form action="{{ route('admin.productos.update', $producto->id) }}" method="POST" enctype="multipart/form-data" class="p-6">
         @csrf
         @method('PUT')
@@ -27,21 +37,10 @@
                     <input type="radio" name="tipo_producto" value="digital"
                            {{ old('tipo_producto', $producto->tipo_producto) == 'digital' ? 'checked' : '' }}
                            class="form-radio h-4 w-4 text-indigo-600" id="tipo_digital">
-                    <span class="ml-2 text-gray-700">Producto Digital (Curso)</span>
+                    <span class="ml-2 text-gray-700">Producto Digital</span>
                 </label>
             </div>
         </div>
-
-        <!-- Mensajes de error -->
-        @if ($errors->any())
-            <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <ul class="list-disc pl-5 text-sm text-red-700">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Columna Izquierda -->
@@ -84,9 +83,15 @@
                 </div>
 
                 <!-- Imágenes actuales -->
+                @php
+                    $imagenesExistentes = 0;
+                    for ($i = 1; $i <= 5; $i++) {
+                        if ($producto->{'imagen_url_' . $i}) $imagenesExistentes++;
+                    }
+                @endphp
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Imágenes Actuales
+                        Imágenes Actuales ({{ $imagenesExistentes }}/5)
                     </label>
                     <div class="grid grid-cols-3 gap-4 mb-4">
                         @for ($i = 1; $i <= 5; $i++)
@@ -95,11 +100,11 @@
                             @endphp
                             @if($producto->$campo)
                                 <div class="relative group" id="imagen-{{ $i }}">
-                                    <img src="{{ asset($producto->$campo) }}" alt="Imagen {{ $i }}"
-                                         class="w-full h-24 object-cover rounded-lg border">
+                                    <img src="{{ $producto->getImageUrl($campo) }}" alt="Imagen {{ $i }}"
+                                         class="w-full h-24 object-cover rounded-lg border shadow-sm">
                                     <button type="button"
                                             onclick="eliminarImagenExistente({{ $i }})"
-                                            class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
                                         <i class="fas fa-times text-xs"></i>
                                     </button>
                                     <input type="hidden" name="imagenes_existentes[{{ $i }}]" value="{{ $producto->$campo }}" class="imagen-existente">
@@ -113,14 +118,15 @@
                 <!-- Nuevas imágenes -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Agregar Nuevas Imágenes (Máximo {{ 5 - count($imagenesExistentes) }} restantes)
+                        Agregar Nuevas Imágenes (Máximo {{ 5 - $imagenesExistentes }} restantes)
                     </label>
                     <div class="space-y-4" id="imagenes-container">
                         <div class="flex items-center space-x-2">
                             <input type="file"
                                    name="imagenes_nuevas[]"
                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                                   accept="image/*">
+                                   accept="image/*"
+                                   onchange="previewNuevaImagen(this)">
                             <button type="button" onclick="agregarCampoImagen()" class="text-indigo-600 hover:text-indigo-900">
                                 <i class="fas fa-plus-circle text-xl"></i>
                             </button>
@@ -128,6 +134,9 @@
                     </div>
                     <p class="mt-2 text-xs text-gray-500">Formatos: JPG, PNG, GIF, WEBP. Máx 2MB cada una.</p>
                 </div>
+
+                <!-- Previsualización de nuevas imágenes -->
+                <div id="preview-nuevas" class="grid grid-cols-3 gap-4 mt-4"></div>
 
                 <!-- SKU (solo para físicos) -->
                 <div id="campo_sku" class="{{ $producto->tipo_producto == 'digital' ? 'hidden' : '' }}">
@@ -207,6 +216,40 @@
                     </div>
                 </div>
 
+                <!-- Descuento -->
+                <div class="space-y-4" id="campo_descuento">
+                    <div class="flex items-center">
+                        <input type="checkbox"
+                               name="aplica_descuento"
+                               id="aplica_descuento"
+                               value="1"
+                               {{ old('aplica_descuento', $producto->aplica_descuento) ? 'checked' : '' }}
+                               class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                        <label for="aplica_descuento" class="ml-2 block text-sm text-gray-700">
+                            Aplica descuento
+                        </label>
+                    </div>
+                    <div id="campo_porcentaje" class="{{ old('aplica_descuento', $producto->aplica_descuento) ? '' : 'hidden' }}">
+                        <label for="porcentaje_descuento" class="block text-sm font-medium text-gray-700 mb-2">
+                            Porcentaje de Descuento
+                        </label>
+                        <div class="relative">
+                            <input type="number"
+                                   name="porcentaje_descuento"
+                                   id="porcentaje_descuento"
+                                   value="{{ old('porcentaje_descuento', $producto->porcentaje_descuento) }}"
+                                   min="0"
+                                   max="100"
+                                   step="1"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 @error('porcentaje_descuento') border-red-500 @enderror">
+                            <span class="absolute right-3 top-2 text-gray-500">%</span>
+                        </div>
+                        @error('porcentaje_descuento')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+
                 <!-- Stock (solo para físicos) -->
                 <div id="campo_stock" class="space-y-4 {{ $producto->tipo_producto == 'digital' ? 'hidden' : '' }}">
                     <div>
@@ -236,6 +279,19 @@
                         <p class="mt-1 text-xs text-gray-500">Notificación cuando el stock esté por debajo de este número</p>
                     </div>
                 </div>
+
+                <!-- Estado -->
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           name="is_active"
+                           id="is_active"
+                           value="1"
+                           {{ old('is_active', $producto->is_active) ? 'checked' : '' }}
+                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="is_active" class="ml-2 block text-sm text-gray-700">
+                        Producto activo
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -250,39 +306,13 @@
                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">{{ old('descripcion', $producto->descripcion) }}</textarea>
         </div>
 
-        <!-- Opciones adicionales -->
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex items-center">
-                <input type="checkbox"
-                       name="aplica_descuento"
-                       id="aplica_descuento"
-                       value="1"
-                       {{ old('aplica_descuento', $producto->aplica_descuento) ? 'checked' : '' }}
-                       class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <label for="aplica_descuento" class="ml-2 block text-sm text-gray-700">
-                    Aplica descuento
-                </label>
-            </div>
-            <div class="flex items-center">
-                <input type="checkbox"
-                       name="is_active"
-                       id="is_active"
-                       value="1"
-                       {{ old('is_active', $producto->is_active) ? 'checked' : '' }}
-                       class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <label for="is_active" class="ml-2 block text-sm text-gray-700">
-                    Producto activo
-                </label>
-            </div>
-        </div>
-
         <!-- Botones -->
         <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200">
             <a href="{{ route('admin.productos.index') }}"
-               class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+               class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                 Cancelar
             </a>
-            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                 <i class="fas fa-save mr-2"></i>
                 Actualizar Producto
             </button>
@@ -298,19 +328,19 @@
     function agregarCampoImagen() {
         const container = document.getElementById('imagenes-container');
         const camposActuales = container.children.length;
-
-        // Contar imágenes existentes visibles (no eliminadas)
         const imagenesVisibles = document.querySelectorAll('[id^="imagen-"]').length;
         const totalActual = imagenesVisibles + camposActuales;
 
         if (totalActual < maxImagenes) {
+            contadorImagenes++;
             const nuevoCampo = document.createElement('div');
             nuevoCampo.className = 'flex items-center space-x-2 mt-2';
             nuevoCampo.innerHTML = `
                 <input type="file"
-                    name="imagenes_nuevas[]"
-                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                    accept="image/*">
+                       name="imagenes_nuevas[]"
+                       class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                       accept="image/*"
+                       onchange="previewNuevaImagen(this)">
                 <button type="button" onclick="eliminarCampoImagen(this)" class="text-red-600 hover:text-red-900">
                     <i class="fas fa-minus-circle text-xl"></i>
                 </button>
@@ -326,7 +356,26 @@
     }
 
     function eliminarCampoImagen(boton) {
-        boton.closest('.flex').remove();
+        const campo = boton.closest('.flex');
+        campo.remove();
+    }
+
+    function previewNuevaImagen(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            const previewContainer = document.getElementById('preview-nuevas');
+
+            reader.onload = function(e) {
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'relative';
+                previewDiv.innerHTML = `
+                    <img src="${e.target.result}" class="w-full h-24 object-cover rounded-lg border shadow-sm">
+                `;
+                previewContainer.appendChild(previewDiv);
+            }
+
+            reader.readAsDataURL(input.files[0]);
+        }
     }
 
     function eliminarImagenExistente(posicion) {
@@ -341,66 +390,26 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Mostrar indicador de carga
+                // Agregar posición a la lista de imágenes a eliminar
+                if (!imagenesEliminar.includes(posicion)) {
+                    imagenesEliminar.push(posicion);
+                }
+
+                // Actualizar el campo oculto con las posiciones a eliminar
+                document.getElementById('imagenes_eliminar').value = JSON.stringify(imagenesEliminar);
+
+                // Ocultar la imagen visualmente
+                const imagenDiv = document.getElementById('imagen-' + posicion);
+                if (imagenDiv) {
+                    imagenDiv.remove();
+                }
+
                 Swal.fire({
-                    title: 'Eliminando...',
-                    text: 'Por favor espera',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
-
-                // Enviar petición AJAX para eliminar la imagen
-                fetch('{{ route("admin.productos.eliminar-imagen", $producto->id) }}', {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        posicion: posicion
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Agregar posición a la lista de imágenes a eliminar
-                        if (!imagenesEliminar.includes(posicion)) {
-                            imagenesEliminar.push(posicion);
-                        }
-
-                        // Actualizar el campo oculto con el JSON
-                        document.getElementById('imagenes_eliminar').value = JSON.stringify(imagenesEliminar);
-
-                        // Ocultar la imagen visualmente
-                        const imagenDiv = document.getElementById('imagen-' + posicion);
-                        if (imagenDiv) {
-                            imagenDiv.remove(); // Eliminar completamente el div de la imagen
-                        }
-
-                        Swal.fire({
-                            icon: 'success',
-                            title: '¡Eliminada!',
-                            text: 'La imagen ha sido eliminada correctamente',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error',
-                            text: data.message || 'No se pudo eliminar la imagen'
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'Ocurrió un error al eliminar la imagen'
-                    });
+                    icon: 'success',
+                    title: 'Marcada para eliminar',
+                    text: 'La imagen se eliminará al guardar los cambios',
+                    timer: 2000,
+                    showConfirmButton: false
                 });
             }
         });
@@ -413,6 +422,8 @@
         const campoSku = document.getElementById('campo_sku');
         const campoStock = document.getElementById('campo_stock');
         const campoUrl = document.getElementById('campo_url');
+        const aplicaDescuento = document.getElementById('aplica_descuento');
+        const campoPorcentaje = document.getElementById('campo_porcentaje');
 
         function toggleCampos() {
             if (tipoDigital.checked) {
@@ -438,9 +449,23 @@
             }
         }
 
+        function toggleDescuento() {
+            if (aplicaDescuento.checked) {
+                campoPorcentaje.classList.remove('hidden');
+                document.getElementById('porcentaje_descuento').required = true;
+            } else {
+                campoPorcentaje.classList.add('hidden');
+                document.getElementById('porcentaje_descuento').required = false;
+            }
+        }
+
         tipoFisico.addEventListener('change', toggleCampos);
         tipoDigital.addEventListener('change', toggleCampos);
+        aplicaDescuento.addEventListener('change', toggleDescuento);
+
+        // Inicializar estados
         toggleCampos();
+        toggleDescuento();
     });
 </script>
 @endsection

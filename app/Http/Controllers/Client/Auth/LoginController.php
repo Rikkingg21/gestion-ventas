@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Client\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ProductosController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Session;
 
 class LoginController extends Controller
 {
@@ -30,6 +33,10 @@ class LoginController extends Controller
                 ->withInput($request->except('password'));
         }
 
+        // GUARDAR EL SESSION_ID ANTES DEL LOGIN
+        $oldSessionId = Session::getId();
+        Log::info('Session ID antes del login:', ['old_session_id' => $oldSessionId]);
+
         // Intentar autenticar con el guard de clientes
         if (Auth::guard('client')->attempt(['email' => $request->email, 'password' => $request->password])) {
 
@@ -52,7 +59,12 @@ class LoginController extends Controller
                     ->withInput($request->except('password'));
             }
 
+            // AHORA REGENERAMOS LA SESIÓN
             $request->session()->regenerate();
+
+            // PASAMOS EL OLD_SESSION_ID A LA MIGRACIÓN
+            $productosController = new ProductosController();
+            $productosController->migrarCarritoSesionACliente($oldSessionId);
 
             return redirect()->intended(route('home'))
                 ->with('success', '¡Bienvenido de nuevo, ' . $user->nombres . '!');

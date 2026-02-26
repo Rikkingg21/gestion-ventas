@@ -54,11 +54,12 @@ class ProductosController extends Controller
             'descripcion' => 'nullable|string',
             'precioUSD' => 'required|numeric|min:0',
             'precioLocal' => 'required|numeric|min:0',
-            'aplica_descuento' => 'boolean',
+            'aplica_descuento' => 'sometimes|boolean',
+            'porcentaje_descuento' => 'nullable|required_if:aplica_descuento,1|numeric|min:0|max:100',
             'tipo_producto' => 'required|in:fisico,digital',
             'imagenes' => 'nullable|array|max:5',
             'imagenes.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'is_active' => 'boolean'
+            'is_active' => 'sometimes|boolean'
         ];
 
         // Reglas específicas según tipo
@@ -78,9 +79,9 @@ class ProductosController extends Controller
                 ->withInput();
         }
 
-        $data = $request->all();
-        $data['aplica_descuento'] = $request->has('aplica_descuento');
-        $data['is_active'] = $request->has('is_active');
+        $data = $request->except(['imagenes', 'stock', 'stock_minimo']);
+        $data['aplica_descuento'] = $request->boolean('aplica_descuento');
+        $data['is_active'] = $request->boolean('is_active');
 
         // Manejar la subida de múltiples imágenes
         if ($request->hasFile('imagenes')) {
@@ -88,12 +89,15 @@ class ProductosController extends Controller
             $contador = 1;
 
             foreach ($imagenes as $imagen) {
-                if ($contador > 5) break; // Máximo 5 imágenes
+                if ($contador > 5) break;
 
                 $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
-                $imagen->move(public_path('storage/productos'), $nombreImagen);
 
-                $data['imagen_url_' . $contador] = 'storage/productos/' . $nombreImagen;
+                // Usar Storage para mejor manejo
+                $path = $imagen->storeAs('public/productos', $nombreImagen);
+
+                // Guardar la ruta relativa para usar con asset()
+                $data['imagen_url_' . $contador] = Storage::url($path);
                 $contador++;
             }
         }
@@ -115,37 +119,12 @@ class ProductosController extends Controller
             ->with('success', 'Producto creado exitosamente.');
     }
 
-    public function show($id)
-    {
-        $producto = Producto::with('categoria', 'stock')->findOrFail($id);
-
-        // Obtener todas las imágenes del producto
-        $imagenes = [];
-        for ($i = 1; $i <= 5; $i++) {
-            $campo = 'imagen_url_' . $i;
-            if ($producto->$campo) {
-                $imagenes[] = $producto->$campo;
-            }
-        }
-
-        return view('admin.productos.show', compact('producto', 'imagenes'));
-    }
-
     public function edit($id)
     {
         $producto = Producto::with('stock')->findOrFail($id);
         $categorias = Categoria::where('is_active', true)->orderBy('nombre')->get();
 
-        // Obtener las imágenes existentes
-        $imagenesExistentes = [];
-        for ($i = 1; $i <= 5; $i++) {
-            $campo = 'imagen_url_' . $i;
-            if ($producto->$campo) {
-                $imagenesExistentes[$i] = $producto->$campo;
-            }
-        }
-
-        return view('admin.productos.edit', compact('producto', 'categorias', 'imagenesExistentes'));
+        return view('admin.productos.edit', compact('producto', 'categorias'));
     }
 
     public function update(Request $request, $id)
@@ -158,13 +137,14 @@ class ProductosController extends Controller
             'descripcion' => 'nullable|string',
             'precioUSD' => 'required|numeric|min:0',
             'precioLocal' => 'required|numeric|min:0',
-            'aplica_descuento' => 'boolean',
+            'aplica_descuento' => 'sometimes|boolean',
+            'porcentaje_descuento' => 'nullable|required_if:aplica_descuento,1|numeric|min:0|max:100',
             'tipo_producto' => 'required|in:fisico,digital',
             'imagenes_nuevas' => 'nullable|array|max:5',
             'imagenes_nuevas.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'imagenes_eliminar' => 'nullable|array',
             'imagenes_eliminar.*' => 'integer|between:1,5',
-            'is_active' => 'boolean'
+            'is_active' => 'sometimes|boolean'
         ];
 
         // Reglas específicas según tipo
@@ -188,117 +168,57 @@ class ProductosController extends Controller
                 ->withInput();
         }
 
-        $data = $request->all();
-        $data['aplica_descuento'] = $request->has('aplica_descuento');
-        $data['is_active'] = $request->has('is_active');
-
-        // ===== Manejar eliminación de imágenes existentes =====
-        // Inicializar todas las posiciones de imagen como null para luego sobrescribir
-        for ($i = 1; $i <= 5; $i++) {
-            $data['imagen_url_' . $i] = null;
-        }
-
-        // Primero, mantener las imágenes existentes que NO se eliminarán
-        for ($i = 1; $i <= 5; $i++) {
-            $campo = 'imagen_url_' . $i;
-            if ($producto->$campo) {
-                $data[$campo] = $producto->$campo;
-            }
-        }
+        $data = $request->except(['imagenes_nuevas', 'imagenes_eliminar', 'stock', 'stock_minimo']);
+        $data['aplica_descuento'] = $request->boolean('aplica_descuento');
+        $data['is_active'] = $request->boolean('is_active');
 
         // Procesar imágenes a eliminar
-        $imagenesEliminar = [];
-
-        // Verificar si hay imágenes para eliminar
-        if ($request->has('imagenes_eliminar')) {
-            // Si viene como string JSON (del formulario)
-            if (is_string($request->imagenes_eliminar) && !empty($request->imagenes_eliminar)) {
-                $imagenesEliminar = json_decode($request->imagenes_eliminar, true) ?? [];
-            }
-            // Si viene como array
-            elseif (is_array($request->imagenes_eliminar)) {
-                $imagenesEliminar = $request->imagenes_eliminar;
-            }
-        }
-
-        // Eliminar las imágenes marcadas
-        if (!empty($imagenesEliminar)) {
-            foreach ($imagenesEliminar as $posicion) {
+        if ($request->has('imagenes_eliminar') && is_array($request->imagenes_eliminar)) {
+            foreach ($request->imagenes_eliminar as $posicion) {
                 $campo = 'imagen_url_' . $posicion;
                 if ($producto->$campo) {
                     // Eliminar archivo físico
-                    $rutaCompleta = public_path($producto->$campo);
-                    if (file_exists($rutaCompleta)) {
-                        unlink($rutaCompleta);
-                    }
-                    // Eliminar referencia en BD
+                    $ruta = str_replace('/storage/', 'public/', $producto->$campo);
+                    Storage::delete($ruta);
+
+                    // Eliminar referencia
                     $data[$campo] = null;
                 }
             }
-        }
-
-        // ===== Manejar subida de nuevas imágenes =====
-        $erroresImagenes = [];
-
-        if ($request->hasFile('imagenes_nuevas')) {
-            // Encontrar posiciones disponibles (1-5)
-            $posicionesOcupadas = [];
+        } else {
+            // Mantener imágenes existentes si no se eliminan
             for ($i = 1; $i <= 5; $i++) {
                 $campo = 'imagen_url_' . $i;
-                if (!empty($data[$campo])) {
-                    $posicionesOcupadas[] = $i;
-                }
-            }
-
-            $posicionesDisponibles = array_values(array_diff(range(1, 5), $posicionesOcupadas));
-            $nuevasImagenes = $request->file('imagenes_nuevas');
-
-            // Verificar si hay posiciones disponibles
-            if (empty($posicionesDisponibles)) {
-                return redirect()->back()
-                    ->withErrors(['imagenes_nuevas' => 'No hay espacio para más imágenes. Máximo 5 imágenes permitidas.'])
-                    ->withInput();
-            }
-
-            $contador = 0;
-            foreach ($nuevasImagenes as $index => $imagen) {
-                // Verificar que todavía hay posiciones disponibles
-                if (!isset($posicionesDisponibles[$contador])) {
-                    $erroresImagenes[] = "No hay suficiente espacio para todas las imágenes. Algunas no se pudieron subir.";
-                    break;
-                }
-
-                $posicion = $posicionesDisponibles[$contador];
-
-                try {
-                    // Validar la imagen individualmente (aunque ya se validó con las reglas)
-                    if (!$imagen->isValid()) {
-                        $erroresImagenes[] = "La imagen " . ($index + 1) . " no es válida.";
-                        $contador++;
-                        continue;
-                    }
-
-                    $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
-
-                    // Intentar mover la imagen
-                    if (!$imagen->move(public_path('storage/productos'), $nombreImagen)) {
-                        $erroresImagenes[] = "Error al subir la imagen " . ($index + 1) . ".";
-                    } else {
-                        $data['imagen_url_' . $posicion] = 'storage/productos/' . $nombreImagen;
-                    }
-
-                    $contador++;
-                } catch (\Exception $e) {
-                    $erroresImagenes[] = "Error al procesar la imagen " . ($index + 1) . ": " . $e->getMessage();
+                if ($producto->$campo) {
+                    $data[$campo] = $producto->$campo;
                 }
             }
         }
 
-        // Si hay errores con las imágenes, redirigir con los errores
-        if (!empty($erroresImagenes)) {
-            return redirect()->back()
-                ->withErrors(['imagenes' => implode(' ', $erroresImagenes)])
-                ->withInput();
+        // Subir nuevas imágenes
+        if ($request->hasFile('imagenes_nuevas')) {
+            $posicionesDisponibles = [];
+            for ($i = 1; $i <= 5; $i++) {
+                $campo = 'imagen_url_' . $i;
+                if (empty($data[$campo])) {
+                    $posicionesDisponibles[] = $i;
+                }
+            }
+
+            $nuevasImagenes = $request->file('imagenes_nuevas');
+            $contador = 0;
+
+            foreach ($nuevasImagenes as $imagen) {
+                if ($contador >= count($posicionesDisponibles)) break;
+
+                $posicion = $posicionesDisponibles[$contador];
+                $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
+
+                $path = $imagen->storeAs('public/productos', $nombreImagen);
+                $data['imagen_url_' . $posicion] = Storage::url($path);
+
+                $contador++;
+            }
         }
 
         // Actualizar el producto
@@ -331,8 +251,9 @@ class ProductosController extends Controller
         // Eliminar todas las imágenes asociadas
         for ($i = 1; $i <= 5; $i++) {
             $campo = 'imagen_url_' . $i;
-            if ($producto->$campo && file_exists(public_path($producto->$campo))) {
-                unlink(public_path($producto->$campo));
+            if ($producto->$campo) {
+                $ruta = str_replace('/storage/', 'public/', $producto->$campo);
+                Storage::delete($ruta);
             }
         }
 
@@ -345,64 +266,5 @@ class ProductosController extends Controller
 
         return redirect()->route('admin.productos.index')
             ->with('success', 'Producto eliminado exitosamente.');
-    }
-
-    /**
-     * Eliminar una imagen específica vía AJAX
-     */
-    public function eliminarImagen(Request $request, $id)
-    {
-        try {
-            $producto = Producto::findOrFail($id);
-            $posicion = $request->posicion;
-
-            \Log::info('Eliminando imagen', [
-                'producto_id' => $id,
-                'posicion' => $posicion,
-                'request_all' => $request->all()
-            ]);
-
-            if ($posicion >= 1 && $posicion <= 5) {
-                $campo = 'imagen_url_' . $posicion;
-
-                if ($producto->$campo) {
-                    // Eliminar archivo físico
-                    $rutaCompleta = public_path($producto->$campo);
-                    if (file_exists($rutaCompleta)) {
-                        unlink($rutaCompleta);
-                    }
-
-                    // Eliminar referencia en BD
-                    $producto->$campo = null;
-                    $producto->save();
-
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Imagen eliminada correctamente'
-                    ]);
-                } else {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'La imagen no existe'
-                    ], 404);
-                }
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Posición de imagen inválida'
-            ], 400);
-
-        } catch (\Exception $e) {
-            \Log::error('Error al eliminar imagen', [
-                'error' => $e->getMessage(),
-                'producto_id' => $id
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al eliminar la imagen: ' . $e->getMessage()
-            ], 500);
-        }
     }
 }

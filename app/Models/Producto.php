@@ -19,6 +19,7 @@ class Producto extends Model
         'precioUSD',
         'precioLocal',
         'aplica_descuento',
+        'porcentaje_descuento',
         'tipo_producto', // 'fisico' o 'digital'
         'url_recurso', // para productos digitales (link a Drive, etc.)
         'sku', // código único para productos físicos

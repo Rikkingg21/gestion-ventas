@@ -7,10 +7,17 @@ use App\Http\Controllers\ProductosController;
 
 use App\Http\Controllers\Admin\Auth\LoginController as AdminLoginController;
 
-//ruta publica
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/productos', [ProductosController::class, 'index'])->name('producto.index');
 Route::get('/productos/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
+
+// Rutas del carrito - TODAS USANDO POST para simplificar (o todas usando el método HTTP apropiado)
+Route::get('/carrito/ver', [ProductosController::class, 'verCarrito'])->name('carrito.ver');
+Route::post('/carrito/agregar/{producto}', [ProductosController::class, 'agregarAlCarrito'])->name('carrito.agregar');
+Route::post('/carrito/actualizar/{productoId}', [ProductosController::class, 'actualizarCantidad'])->name('carrito.actualizar'); // Cambiado de PUT a POST
+Route::delete('/carrito/eliminar/{productoId}', [ProductosController::class, 'eliminarDelCarrito'])->name('carrito.eliminar');
+Route::post('/carrito/vaciar', [ProductosController::class, 'vaciarCarrito'])->name('carrito.vaciar');
+
 Route::get('/mis-compras', [ComprasController::class, 'index'])->name('compras.index')->middleware('auth:client');
 Route::get('/nosotros', [ProductosController::class, 'funcion'])->name('nosotros');
 

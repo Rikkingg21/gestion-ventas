@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Mi Empresa - Clientes')</title>
 
     <!-- Bootstrap 5 CSS -->
@@ -207,10 +208,10 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#"
                                id="userDropdown" role="button" data-bs-toggle="dropdown">
-                                <img src="https://ui-avatars.com/api/?name={{ urlencode($currentUser->nombre ?? 'Usuario') }}&background=065f46&color=fff"
+                                <img src="https://ui-avatars.com/api/?name={{ urlencode($currentUser->nombres ?? 'Usuario') }}&background=065f46&color=fff"
                                      alt="Avatar"
                                      class="user-avatar me-2">
-                                <span>{{ $currentUser->nombre ?? 'Mi Cuenta' }}</span>
+                                <span>{{ $currentUser->nombres ?? 'Mi Cuenta' }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li>
@@ -272,7 +273,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-
+    <script src="{{ asset('js/carrito.js') }}"></script>
     @stack('scripts')
 </body>
 </html>

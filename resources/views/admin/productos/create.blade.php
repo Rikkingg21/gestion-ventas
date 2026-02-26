@@ -9,6 +9,16 @@
         <h3 class="text-lg font-semibold text-gray-800">Información del Producto</h3>
     </div>
 
+    @if ($errors->any())
+        <div class="mx-6 mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <ul class="list-disc pl-5 text-sm text-red-700">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <form action="{{ route('admin.productos.store') }}" method="POST" enctype="multipart/form-data" class="p-6">
         @csrf
 
@@ -26,7 +36,7 @@
                     <input type="radio" name="tipo_producto" value="digital"
                            {{ old('tipo_producto') == 'digital' ? 'checked' : '' }}
                            class="form-radio h-4 w-4 text-indigo-600" id="tipo_digital">
-                    <span class="ml-2 text-gray-700">Producto Digital (Curso)</span>
+                    <span class="ml-2 text-gray-700">Producto Digital</span>
                 </label>
             </div>
         </div>
@@ -80,8 +90,10 @@
                         <div class="flex items-center space-x-2">
                             <input type="file"
                                    name="imagenes[]"
+                                   id="imagen_1"
                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                                   accept="image/*">
+                                   accept="image/*"
+                                   onchange="previewImage(this, 1)">
                             <button type="button" onclick="agregarCampoImagen()" class="text-indigo-600 hover:text-indigo-900">
                                 <i class="fas fa-plus-circle text-xl"></i>
                             </button>
@@ -177,6 +189,40 @@
                     </div>
                 </div>
 
+                <!-- Descuento -->
+                <div class="space-y-4" id="campo_descuento">
+                    <div class="flex items-center">
+                        <input type="checkbox"
+                               name="aplica_descuento"
+                               id="aplica_descuento"
+                               value="1"
+                               {{ old('aplica_descuento') ? 'checked' : '' }}
+                               class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                        <label for="aplica_descuento" class="ml-2 block text-sm text-gray-700">
+                            Aplica descuento
+                        </label>
+                    </div>
+                    <div id="campo_porcentaje" class="{{ old('aplica_descuento') ? '' : 'hidden' }}">
+                        <label for="porcentaje_descuento" class="block text-sm font-medium text-gray-700 mb-2">
+                            Porcentaje de Descuento <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="number"
+                                   name="porcentaje_descuento"
+                                   id="porcentaje_descuento"
+                                   value="{{ old('porcentaje_descuento') }}"
+                                   min="0"
+                                   max="100"
+                                   step="1"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 @error('porcentaje_descuento') border-red-500 @enderror">
+                            <span class="absolute right-3 top-2 text-gray-500">%</span>
+                        </div>
+                        @error('porcentaje_descuento')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+
                 <!-- Stock (solo para físicos) -->
                 <div id="campo_stock" class="space-y-4 {{ old('tipo_producto', 'fisico') == 'digital' ? 'hidden' : '' }}">
                     <div>
@@ -206,6 +252,19 @@
                         <p class="mt-1 text-xs text-gray-500">Notificación cuando el stock esté por debajo de este número</p>
                     </div>
                 </div>
+
+                <!-- Estado -->
+                <div class="flex items-center">
+                    <input type="checkbox"
+                           name="is_active"
+                           id="is_active"
+                           value="1"
+                           {{ old('is_active', true) ? 'checked' : '' }}
+                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="is_active" class="ml-2 block text-sm text-gray-700">
+                        Producto activo
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -220,39 +279,13 @@
                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">{{ old('descripcion') }}</textarea>
         </div>
 
-        <!-- Opciones adicionales -->
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="flex items-center">
-                <input type="checkbox"
-                       name="aplica_descuento"
-                       id="aplica_descuento"
-                       value="1"
-                       {{ old('aplica_descuento') ? 'checked' : '' }}
-                       class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <label for="aplica_descuento" class="ml-2 block text-sm text-gray-700">
-                    Aplica descuento
-                </label>
-            </div>
-            <div class="flex items-center">
-                <input type="checkbox"
-                       name="is_active"
-                       id="is_active"
-                       value="1"
-                       {{ old('is_active', true) ? 'checked' : '' }}
-                       class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                <label for="is_active" class="ml-2 block text-sm text-gray-700">
-                    Producto activo
-                </label>
-            </div>
-        </div>
-
         <!-- Botones -->
         <div class="flex justify-end space-x-3 mt-8 pt-6 border-t border-gray-200">
             <a href="{{ route('admin.productos.index') }}"
-               class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+               class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                 Cancelar
             </a>
-            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                 <i class="fas fa-save mr-2"></i>
                 Guardar Producto
             </button>
@@ -269,6 +302,7 @@
         const camposActuales = container.children.length;
 
         if (camposActuales < maxImagenes) {
+            contadorImagenes++;
             const nuevoCampo = document.createElement('div');
             nuevoCampo.className = 'flex items-center space-x-2 mt-2';
             nuevoCampo.innerHTML = `
@@ -276,7 +310,7 @@
                        name="imagenes[]"
                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                        accept="image/*"
-                       onchange="previewImage(this, ${camposActuales})">
+                       onchange="previewImage(this, ${camposActuales + 1})">
                 <button type="button" onclick="eliminarCampoImagen(this)" class="text-red-600 hover:text-red-900">
                     <i class="fas fa-minus-circle text-xl"></i>
                 </button>
@@ -292,7 +326,16 @@
     }
 
     function eliminarCampoImagen(boton) {
-        boton.closest('.flex').remove();
+        const campo = boton.closest('.flex');
+        const index = Array.from(campo.parentNode.children).indexOf(campo);
+
+        // Eliminar la preview correspondiente si existe
+        const previews = document.getElementById('preview-container').children;
+        if (previews[index] && previews[index].tagName === 'DIV') {
+            previews[index].remove();
+        }
+
+        campo.remove();
     }
 
     function previewImage(input, index) {
@@ -301,11 +344,22 @@
             const previewContainer = document.getElementById('preview-container');
 
             reader.onload = function(e) {
+                // Limpiar preview existente para este índice
+                const previews = previewContainer.children;
+                for (let i = 0; i < previews.length; i++) {
+                    if (previews[i].getAttribute('data-index') == index) {
+                        previews[i].remove();
+                        break;
+                    }
+                }
+
+                // Crear nueva preview
                 const previewDiv = document.createElement('div');
                 previewDiv.className = 'relative';
+                previewDiv.setAttribute('data-index', index);
                 previewDiv.innerHTML = `
-                    <img src="${e.target.result}" class="w-full h-24 object-cover rounded-lg border">
-                    <button type="button" onclick="this.parentElement.remove()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                    <img src="${e.target.result}" class="w-full h-24 object-cover rounded-lg border shadow-sm">
+                    <button type="button" onclick="eliminarPreview(this, ${index})" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">
                         ×
                     </button>
                 `;
@@ -316,6 +370,20 @@
         }
     }
 
+    function eliminarPreview(boton, index) {
+        // Eliminar la preview
+        boton.parentElement.remove();
+
+        // Buscar y limpiar el input de archivo correspondiente
+        const inputs = document.querySelectorAll('input[type="file"][name="imagenes[]"]');
+        for (let input of inputs) {
+            if (input.value) {
+                input.value = '';
+                break;
+            }
+        }
+    }
+
     // Toggle campos según tipo de producto
     document.addEventListener('DOMContentLoaded', function() {
         const tipoFisico = document.getElementById('tipo_fisico');
@@ -323,6 +391,8 @@
         const campoSku = document.getElementById('campo_sku');
         const campoStock = document.getElementById('campo_stock');
         const campoUrl = document.getElementById('campo_url');
+        const aplicaDescuento = document.getElementById('aplica_descuento');
+        const campoPorcentaje = document.getElementById('campo_porcentaje');
 
         function toggleCampos() {
             if (tipoDigital.checked) {
@@ -348,9 +418,24 @@
             }
         }
 
+        function toggleDescuento() {
+            if (aplicaDescuento.checked) {
+                campoPorcentaje.classList.remove('hidden');
+                document.getElementById('porcentaje_descuento').required = true;
+            } else {
+                campoPorcentaje.classList.add('hidden');
+                document.getElementById('porcentaje_descuento').required = false;
+                document.getElementById('porcentaje_descuento').value = '';
+            }
+        }
+
         tipoFisico.addEventListener('change', toggleCampos);
         tipoDigital.addEventListener('change', toggleCampos);
+        aplicaDescuento.addEventListener('change', toggleDescuento);
+
+        // Inicializar estados
         toggleCampos();
+        toggleDescuento();
     });
 </script>
 @endsection

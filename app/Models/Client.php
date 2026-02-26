@@ -16,6 +16,7 @@ class Client extends Model
 
     protected $fillable = [
         'user_id',
+        'email',
         'is_active'
     ];
 
@@ -30,5 +31,13 @@ class Client extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    public function carritos()
+    {
+        return $this->hasMany(Carrito::class, 'cliente_id');
+    }
+    public function carritoActivo()
+    {
+        return $this->carritos()->where('estado', 'activo')->first();
     }
 }

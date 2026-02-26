@@ -3,27 +3,24 @@
 namespace App\Http\Controllers\Client\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\ProductosController;
 use App\Models\User;
 use App\Models\Client;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Log;
 
 class RegisterController extends Controller
 {
-    /**
-     * Mostrar el formulario de registro
-     */
     public function showRegistrationForm()
     {
         return view('client.auth.register');
     }
 
-    /**
-     * Procesar el registro
-     */
     public function register(Request $request)
     {
         // Validar los datos (sin username)
@@ -61,6 +58,9 @@ class RegisterController extends Controller
                         ->withInput();
         }
 
+        // GUARDAR EL SESSION_ID ANTES DEL REGISTRO
+        $oldSessionId = Session::getId();
+
         // Usar transacción para asegurar que ambas tablas se actualicen correctamente
         DB::beginTransaction();
 
@@ -70,7 +70,7 @@ class RegisterController extends Controller
 
             // Crear el usuario
             $user = User::create([
-                'username' => $username, // Generado automáticamente
+                'username' => $username,
                 'nombres' => $request->nombres,
                 'apellido_paterno' => $request->apellido_paterno,
                 'apellido_materno' => $request->apellido_materno,
@@ -84,6 +84,7 @@ class RegisterController extends Controller
             // Crear el cliente asociado
             Client::create([
                 'user_id' => $user->id,
+                'email' => $request->email,
                 'is_active' => true
             ]);
 
@@ -92,34 +93,32 @@ class RegisterController extends Controller
             // Iniciar sesión automáticamente
             auth()->guard('client')->login($user);
 
+            // Migrar carrito de sesión al nuevo cliente (pasando el old_session_id)
+            $productosController = new ProductosController();
+            $productosController->migrarCarritoSesionACliente($oldSessionId);
+
             // Redirigir al dashboard con mensaje de éxito
-            return redirect()->route('client.dashboard')
+            return redirect()->route('home')
                 ->with('success', '¡Registro exitoso! Bienvenido a nuestra plataforma.');
 
         } catch (\Exception $e) {
             DB::rollback();
-
-            Log::error('Error en registro de cliente: ' . $e->getMessage());
-            Log::error($e->getTraceAsString());
 
             return redirect()->back()
                 ->with('error', 'Ocurrió un error al registrar. Por favor, intenta nuevamente.')
                 ->withInput();
         }
     }
-    private function generateUsername($nombres, $apellidoPaterno)
-    {
-        // Tomar la primera parte del nombre y el apellido
-        $nombreParte = explode(' ', trim($nombres))[0];
-        $base = strtolower($nombreParte . '.' . $apellidoPaterno);
 
-        // Eliminar caracteres especiales y espacios
-        $base = preg_replace('/[^a-z0-9.]/', '', $base);
+    private function generateUsername($nombres, $apellido_paterno)
+    {
+        // Generar username: primera letra del nombre + apellido + número aleatorio
+        $base = strtolower(substr($nombres, 0, 1) . $apellido_paterno);
+        $base = preg_replace('/[^a-z0-9]/', '', $base);
 
         $username = $base;
         $counter = 1;
 
-        // Verificar si el username ya existe
         while (User::where('username', $username)->exists()) {
             $username = $base . $counter;
             $counter++;
