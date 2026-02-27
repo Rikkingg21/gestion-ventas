@@ -527,6 +527,128 @@ class ProductosController extends Controller
             ->active()
             ->findOrFail($id);
 
-        return view('client.productos.detalle', compact('producto'));
+        // Procesar imágenes
+        $images = [];
+        for($i = 1; $i <= 5; $i++) {
+            $imgField = "imagen_url_$i";
+            if($producto->$imgField) {
+                $images[] = $this->formatImageUrl($producto->$imgField);
+            }
+        }
+
+        // Calcular datos del producto
+        $productData = [
+            'is_new' => $producto->created_at->diffInDays(now()) < 7,
+            'stock_actual' => $producto->esFisico() ? $producto->getStockActualAttribute() : null,
+            'precio_con_descuento' => $this->calcularPrecioConDescuento($producto),
+            'rating' => $this->getProductRating($producto->id), // Puedes implementar esto según tu lógica
+            'total_reviews' => $this->getTotalReviews($producto->id), // Implementar según tu lógica
+            'caracteristicas' => $this->getCaracteristicasProducto($producto)
+        ];
+
+        return view('client.productos.detalle', compact('producto', 'images', 'productData'));
+    }
+
+    // Formatear URL de imagen
+    private function formatImageUrl($url)
+    {
+        if (!$url) return null;
+
+        // Limpiar la URL
+        $url = str_replace(['/producto/', 'storage/storage/'], ['/', 'storage/'], $url);
+        $url = str_replace('/storage/storage/', '/storage/', $url);
+
+        // Si ya es URL completa, devolverla
+        if (filter_var($url, FILTER_VALIDATE_URL) || str_starts_with($url, 'http')) {
+            return $url;
+        }
+
+        // Formatear según el caso
+        if (str_starts_with($url, 'storage/')) {
+            return asset($url);
+        }
+
+        if (str_starts_with($url, '/storage/')) {
+            return asset(substr($url, 1));
+        }
+
+        return asset('storage/' . ltrim($url, '/'));
+    }
+
+    // Calcular precio con descuento
+    private function calcularPrecioConDescuento($producto)
+    {
+        if (!$producto->aplica_descuento || $producto->porcentaje_descuento <= 0) {
+            return [
+                'tiene_descuento' => false,
+                'precio_original_local' => $producto->precioLocal,
+                'precio_original_usd' => $producto->precioUSD,
+                'precio_final_local' => $producto->precioLocal,
+                'precio_final_usd' => $producto->precioUSD,
+                'descuento' => 0,
+                'porcentaje' => 0
+            ];
+        }
+
+        $descuento = $producto->porcentaje_descuento / 100;
+        $precioFinalLocal = $producto->precioLocal * (1 - $descuento);
+        $precioFinalUSD = $producto->precioUSD * (1 - $descuento);
+
+        return [
+            'tiene_descuento' => true,
+            'precio_original_local' => $producto->precioLocal,
+            'precio_original_usd' => $producto->precioUSD,
+            'precio_final_local' => $precioFinalLocal,
+            'precio_final_usd' => $precioFinalUSD,
+            'descuento' => $producto->precioLocal - $precioFinalLocal,
+            'porcentaje' => $producto->porcentaje_descuento
+        ];
+    }
+
+    // Obtener características del producto según su tipo
+    private function getCaracteristicasProducto($producto)
+    {
+        $caracteristicas = [];
+
+        if ($producto->esFisico()) {
+            $caracteristicas = [
+                'Tipo' => 'Producto físico',
+                'SKU' => $producto->sku ?? 'No disponible',
+                'Conexión' => 'Puede conectarse a cualquier dispositivo',
+                'Orientación' => 'Diestro',
+                'Garantía' => 'Producto original'
+            ];
+
+            // Agregar stock si está disponible
+            if ($producto->stock) {
+                $caracteristicas['Stock'] = $producto->stock->cantidad . ' unidades disponibles';
+            }
+        } else {
+            $caracteristicas = [
+                'Tipo' => 'Producto digital',
+                'Entrega' => 'Descarga inmediata después de la compra',
+                'Acceso' => 'Acceso para siempre',
+                'Stock' => 'Ilimitado',
+                'Formato' => 'Digital'
+            ];
+        }
+
+        return $caracteristicas;
+    }
+
+    // Obtener rating del producto (implementa según tu lógica)
+    private function getProductRating($productoId)
+    {
+        // TODO: Implementar lógica real de rating
+        // Esto es solo un ejemplo
+        return 4.5; // Rating de ejemplo
+    }
+
+    // Obtener total de reseñas (implementa según tu lógica)
+    private function getTotalReviews($productoId)
+    {
+        // TODO: Implementar lógica real de reseñas
+        // Esto es solo un ejemplo
+        return 2; // Total de reseñas de ejemplo
     }
 }

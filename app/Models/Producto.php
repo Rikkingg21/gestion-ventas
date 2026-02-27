@@ -16,8 +16,6 @@ class Producto extends Model
         'categoria_id',
         'nombre',
         'descripcion',
-        'precioUSD',
-        'precioLocal',
         'aplica_descuento',
         'porcentaje_descuento',
         'tipo_producto', // 'fisico' o 'digital'
@@ -34,8 +32,6 @@ class Producto extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'aplica_descuento' => 'boolean',
-        'precioUSD' => 'decimal:2',
-        'precioLocal' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime'
@@ -110,5 +106,60 @@ class Producto extends Model
 
         // Por defecto
         return asset('storage/' . ltrim($url, '/'));
+    }
+    public function getPrecioUsdAttribute()
+    {
+        // Buscar el precio en USD (asumiendo que USD tiene codigo_iso 'USD')
+        $precioUSD = $this->precios()
+            ->whereHas('moneda', function($query) {
+                $query->where('codigo_iso', 'USD');
+            })
+            ->where('is_active', true)
+            ->first();
+
+        if ($precioUSD) {
+            return $this->aplica_descuento && $this->porcentaje_descuento
+                ? $precioUSD->precio * (1 - $this->porcentaje_descuento / 100)
+                : $precioUSD->precio;
+        }
+
+        return 0;
+    }
+    public function getPrecioLocalAttribute()
+    {
+        // Buscar precio en PEN (o la moneda local que prefieras)
+        $precioLocal = $this->precios()
+            ->whereHas('moneda', function($query) {
+                $query->where('codigo_iso', 'PEN'); // Cambia esto según tu moneda local
+            })
+            ->where('is_active', true)
+            ->first();
+
+        if ($precioLocal) {
+            return $this->aplica_descuento && $this->porcentaje_descuento
+                ? $precioLocal->precio * (1 - $this->porcentaje_descuento / 100)
+                : $precioLocal->precio;
+        }
+
+        return 0;
+    }
+    public function precios()
+    {
+        return $this->hasMany(ProductoPrecio::class, 'producto_id');
+    }
+    public function getPrecioEnMoneda($monedaId)
+    {
+        $precio = $this->precios()
+            ->where('moneda_id', $monedaId)
+            ->where('is_active', true)
+            ->first();
+
+        if ($precio) {
+            return $this->aplica_descuento && $this->porcentaje_descuento
+                ? $precio->precio * (1 - $this->porcentaje_descuento / 100)
+                : $precio->precio;
+        }
+
+        return null;
     }
 }

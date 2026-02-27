@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Producto;
+use App\Models\ProductoPrecio;
 use App\Models\ProductoStock;
 use App\Models\Categoria;
+use App\Models\Moneda;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -15,13 +17,19 @@ class ProductosController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Producto::with('categoria', 'stock');
+        $query = Producto::with([
+            'categoria',
+            'stock',
+            'precios' => function($query) {
+                $query->with('moneda')->where('is_active', true);
+            }
+        ]);
 
         // Búsqueda
         if ($request->has('search') && !empty($request->search)) {
             $query->where('nombre', 'like', '%' . $request->search . '%')
-                  ->orWhere('descripcion', 'like', '%' . $request->search . '%')
-                  ->orWhere('sku', 'like', '%' . $request->search . '%');
+                ->orWhere('descripcion', 'like', '%' . $request->search . '%')
+                ->orWhere('sku', 'like', '%' . $request->search . '%');
         }
 
         // Filtro por categoría
@@ -37,13 +45,18 @@ class ProductosController extends Controller
         $productos = $query->orderBy('nombre')->paginate(10);
         $categorias = Categoria::where('is_active', true)->orderBy('nombre')->get();
 
-        return view('admin.productos.index', compact('productos', 'categorias'));
+        // Obtener monedas para referencia (opcional)
+        $monedas = Moneda::where('is_active', true)->get();
+
+        return view('admin.productos.index', compact('productos', 'categorias', 'monedas'));
     }
 
     public function create()
     {
         $categorias = Categoria::where('is_active', true)->orderBy('nombre')->get();
-        return view('admin.productos.create', compact('categorias'));
+        $monedas = Moneda::where('is_active', true)->get();
+
+        return view('admin.productos.create', compact('categorias', 'monedas'));
     }
 
     public function store(Request $request)
@@ -52,8 +65,6 @@ class ProductosController extends Controller
             'categoria_id' => 'required|exists:categorias,id',
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
-            'precioUSD' => 'required|numeric|min:0',
-            'precioLocal' => 'required|numeric|min:0',
             'aplica_descuento' => 'sometimes|boolean',
             'porcentaje_descuento' => 'nullable|required_if:aplica_descuento,1|numeric|min:0|max:100',
             'tipo_producto' => 'required|in:fisico,digital',
@@ -71,6 +82,17 @@ class ProductosController extends Controller
             $rules['url_recurso'] = 'required|url';
         }
 
+        // Validar que al menos la moneda USD tenga precio
+        $precioUSD = $request->input('precio_USD');
+        if (!$precioUSD && $precioUSD !== '0') {
+            $validator = Validator::make($request->all(), []);
+            $validator->errors()->add('precio_USD', 'El precio en USD es obligatorio.');
+
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
         $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
@@ -79,9 +101,13 @@ class ProductosController extends Controller
                 ->withInput();
         }
 
+        // Preparar datos del producto
         $data = $request->except(['imagenes', 'stock', 'stock_minimo']);
         $data['aplica_descuento'] = $request->boolean('aplica_descuento');
         $data['is_active'] = $request->boolean('is_active');
+
+        // Crear el producto primero (necesitamos el ID para posibles nombres de imagen)
+        $producto = Producto::create($data);
 
         // Manejar la subida de múltiples imágenes
         if ($request->hasFile('imagenes')) {
@@ -91,18 +117,47 @@ class ProductosController extends Controller
             foreach ($imagenes as $imagen) {
                 if ($contador > 5) break;
 
-                $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
+                // Crear nombre único para la imagen
+                $extension = $imagen->getClientOriginalExtension();
+                $nombreImagen = time() . '_' . uniqid() . '.' . $extension;
 
-                // Usar Storage para mejor manejo
-                $path = $imagen->storeAs('public/productos', $nombreImagen);
+                // Ruta completa donde se guardará: public/storage/productos/
+                $rutaDestino = public_path('storage/productos');
 
-                // Guardar la ruta relativa para usar con asset()
-                $data['imagen_url_' . $contador] = Storage::url($path);
+                // Crear el directorio si no existe
+                if (!file_exists($rutaDestino)) {
+                    mkdir($rutaDestino, 0755, true);
+                }
+
+                // Mover la imagen a la carpeta deseada
+                $imagen->move($rutaDestino, $nombreImagen);
+
+                // Guardar la ruta relativa en la base de datos
+                $data['imagen_url_' . $contador] = 'storage/productos/' . $nombreImagen;
+
                 $contador++;
             }
+
+            // Actualizar el producto con las rutas de las imágenes
+            $producto->update($data);
         }
 
-        $producto = Producto::create($data);
+        // Guardar precios en la tabla producto_precios
+        $monedas = Moneda::where('is_active', true)->get();
+
+        foreach ($monedas as $moneda) {
+            $campoPrecio = 'precio_' . $moneda->codigo_iso;
+            $precio = $request->input($campoPrecio);
+
+            if ($precio !== null && $precio !== '') {
+                ProductoPrecio::create([
+                    'producto_id' => $producto->id,
+                    'moneda_id' => $moneda->id,
+                    'precio' => $precio,
+                    'is_active' => true
+                ]);
+            }
+        }
 
         // Crear registro de stock si es producto físico
         if ($request->tipo_producto === 'fisico') {
@@ -121,10 +176,11 @@ class ProductosController extends Controller
 
     public function edit($id)
     {
-        $producto = Producto::with('stock')->findOrFail($id);
+        $producto = Producto::with(['stock', 'precios.moneda'])->findOrFail($id);
         $categorias = Categoria::where('is_active', true)->orderBy('nombre')->get();
+        $monedas = Moneda::where('is_active', true)->get();
 
-        return view('admin.productos.edit', compact('producto', 'categorias'));
+        return view('admin.productos.edit', compact('producto', 'categorias', 'monedas'));
     }
 
     public function update(Request $request, $id)
@@ -135,17 +191,24 @@ class ProductosController extends Controller
             'categoria_id' => 'required|exists:categorias,id',
             'nombre' => 'required|string|max:255',
             'descripcion' => 'nullable|string',
-            'precioUSD' => 'required|numeric|min:0',
-            'precioLocal' => 'required|numeric|min:0',
             'aplica_descuento' => 'sometimes|boolean',
             'porcentaje_descuento' => 'nullable|required_if:aplica_descuento,1|numeric|min:0|max:100',
             'tipo_producto' => 'required|in:fisico,digital',
             'imagenes_nuevas' => 'nullable|array|max:5',
             'imagenes_nuevas.*' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'imagenes_eliminar' => 'nullable|array',
-            'imagenes_eliminar.*' => 'integer|between:1,5',
             'is_active' => 'sometimes|boolean'
         ];
+
+        // Validar que al menos la moneda USD tenga precio
+        $precioUSD = $request->input('precio_USD');
+        if (!$precioUSD && $precioUSD !== '0') {
+            $validator = Validator::make($request->all(), []);
+            $validator->errors()->add('precio_USD', 'El precio en USD es obligatorio.');
+
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
 
         // Reglas específicas según tipo
         if ($request->tipo_producto === 'fisico') {
@@ -173,16 +236,21 @@ class ProductosController extends Controller
         $data['is_active'] = $request->boolean('is_active');
 
         // Procesar imágenes a eliminar
-        if ($request->has('imagenes_eliminar') && is_array($request->imagenes_eliminar)) {
-            foreach ($request->imagenes_eliminar as $posicion) {
-                $campo = 'imagen_url_' . $posicion;
-                if ($producto->$campo) {
-                    // Eliminar archivo físico
-                    $ruta = str_replace('/storage/', 'public/', $producto->$campo);
-                    Storage::delete($ruta);
+        if ($request->has('imagenes_eliminar') && !empty($request->imagenes_eliminar)) {
+            $imagenesEliminar = json_decode($request->imagenes_eliminar, true);
+            if (is_array($imagenesEliminar)) {
+                foreach ($imagenesEliminar as $posicion) {
+                    $campo = 'imagen_url_' . $posicion;
+                    if ($producto->$campo) {
+                        // Eliminar archivo físico
+                        $rutaCompleta = public_path($producto->$campo);
+                        if (file_exists($rutaCompleta)) {
+                            unlink($rutaCompleta);
+                        }
 
-                    // Eliminar referencia
-                    $data[$campo] = null;
+                        // Eliminar referencia en la base de datos
+                        $data[$campo] = null;
+                    }
                 }
             }
         } else {
@@ -197,6 +265,7 @@ class ProductosController extends Controller
 
         // Subir nuevas imágenes
         if ($request->hasFile('imagenes_nuevas')) {
+            // Encontrar posiciones disponibles (campos null)
             $posicionesDisponibles = [];
             for ($i = 1; $i <= 5; $i++) {
                 $campo = 'imagen_url_' . $i;
@@ -212,10 +281,24 @@ class ProductosController extends Controller
                 if ($contador >= count($posicionesDisponibles)) break;
 
                 $posicion = $posicionesDisponibles[$contador];
-                $nombreImagen = time() . '_' . uniqid() . '.' . $imagen->getClientOriginalExtension();
 
-                $path = $imagen->storeAs('public/productos', $nombreImagen);
-                $data['imagen_url_' . $posicion] = Storage::url($path);
+                // Crear nombre único para la imagen
+                $extension = $imagen->getClientOriginalExtension();
+                $nombreImagen = time() . '_' . uniqid() . '.' . $extension;
+
+                // Ruta completa donde se guardará: public/storage/productos/
+                $rutaDestino = public_path('storage/productos');
+
+                // Crear el directorio si no existe
+                if (!file_exists($rutaDestino)) {
+                    mkdir($rutaDestino, 0755, true);
+                }
+
+                // Mover la imagen a la carpeta deseada
+                $imagen->move($rutaDestino, $nombreImagen);
+
+                // Guardar la ruta relativa en la base de datos
+                $data['imagen_url_' . $posicion] = 'storage/productos/' . $nombreImagen;
 
                 $contador++;
             }
@@ -223,6 +306,42 @@ class ProductosController extends Controller
 
         // Actualizar el producto
         $producto->update($data);
+
+        // Actualizar precios en la tabla producto_precios
+        $monedas = Moneda::where('is_active', true)->get();
+
+        foreach ($monedas as $moneda) {
+            $campoPrecio = 'precio_' . $moneda->codigo_iso;
+            $nuevoPrecio = $request->input($campoPrecio);
+
+            // Buscar si ya existe un precio para esta moneda
+            $precioExistente = ProductoPrecio::where('producto_id', $producto->id)
+                ->where('moneda_id', $moneda->id)
+                ->first();
+
+            if ($nuevoPrecio !== null && $nuevoPrecio !== '') {
+                // Si hay precio en el formulario, actualizar o crear
+                if ($precioExistente) {
+                    $precioExistente->update([
+                        'precio' => $nuevoPrecio,
+                        'is_active' => true
+                    ]);
+                } else {
+                    ProductoPrecio::create([
+                        'producto_id' => $producto->id,
+                        'moneda_id' => $moneda->id,
+                        'precio' => $nuevoPrecio,
+                        'is_active' => true
+                    ]);
+                }
+            } else {
+                // Si no hay precio en el formulario y existe un precio, eliminarlo o desactivarlo
+                if ($precioExistente && $moneda->codigo_iso != 'USD') {
+                    // Solo eliminar/desactivar si no es USD
+                    $precioExistente->delete(); // o update(['is_active' => false])
+                }
+            }
+        }
 
         // Actualizar stock si es producto físico
         if ($request->tipo_producto === 'fisico') {
@@ -248,13 +367,23 @@ class ProductosController extends Controller
     {
         $producto = Producto::findOrFail($id);
 
-        // Eliminar todas las imágenes asociadas
+        // Eliminar todas las imágenes asociadas del sistema de archivos
         for ($i = 1; $i <= 5; $i++) {
             $campo = 'imagen_url_' . $i;
             if ($producto->$campo) {
-                $ruta = str_replace('/storage/', 'public/', $producto->$campo);
-                Storage::delete($ruta);
+                // Construir la ruta completa del archivo
+                $rutaCompleta = public_path($producto->$campo);
+
+                // Verificar si el archivo existe y eliminarlo
+                if (file_exists($rutaCompleta)) {
+                    unlink($rutaCompleta);
+                }
             }
+        }
+
+        // Eliminar precios asociados (por la relación en la BD)
+        if ($producto->precios) {
+            $producto->precios()->delete(); // Soft delete si usa SoftDeletes
         }
 
         // Eliminar stock si existe
@@ -262,6 +391,7 @@ class ProductosController extends Controller
             $producto->stock->delete();
         }
 
+        // Eliminar el producto
         $producto->delete();
 
         return redirect()->route('admin.productos.index')

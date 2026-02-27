@@ -148,46 +148,31 @@
             <!-- Columna Derecha -->
             <div class="space-y-6">
                 <!-- Precios -->
-                <div class="grid grid-cols-2 gap-4">
+                @foreach($monedas as $moneda)
                     <div>
-                        <label for="precioUSD" class="block text-sm font-medium text-gray-700 mb-2">
-                            Precio USD <span class="text-red-500">*</span>
+                        <label for="precio_{{ $moneda->codigo_iso }}" class="block text-sm text-gray-600 mb-1">
+                            Precio en {{ $moneda->nombre }} ({{ $moneda->codigo_iso }})
+                            @if($moneda->id == 1)
+                                <span class="text-red-500">*</span>
+                            @endif
                         </label>
                         <div class="relative">
-                            <span class="absolute left-3 top-2 text-gray-500">$</span>
+                            <span class="absolute left-3 top-2 text-gray-500">{{ $moneda->simbolo }}</span>
                             <input type="number"
-                                   name="precioUSD"
-                                   id="precioUSD"
-                                   value="{{ old('precioUSD') }}"
-                                   step="0.01"
-                                   min="0"
-                                   class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 @error('precioUSD') border-red-500 @enderror"
-                                   required>
+                                name="precio_{{ $moneda->codigo_iso }}"
+                                id="precio_{{ $moneda->codigo_iso }}"
+                                value="{{ old('precio_' . $moneda->codigo_iso) }}"
+                                step="0.01"
+                                min="0"
+                                class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 @if($moneda->id == 1) required @endif"
+                                @if($moneda->id == 1) required @endif>
                         </div>
-                        @error('precioUSD')
+                        @error('precio_' . $moneda->codigo_iso)
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                         @enderror
                     </div>
-                    <div>
-                        <label for="precioLocal" class="block text-sm font-medium text-gray-700 mb-2">
-                            Precio Local <span class="text-red-500">*</span>
-                        </label>
-                        <div class="relative">
-                            <span class="absolute left-3 top-2 text-gray-500">S/</span>
-                            <input type="number"
-                                   name="precioLocal"
-                                   id="precioLocal"
-                                   value="{{ old('precioLocal') }}"
-                                   step="0.01"
-                                   min="0"
-                                   class="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 @error('precioLocal') border-red-500 @enderror"
-                                   required>
-                        </div>
-                        @error('precioLocal')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-                </div>
+                @endforeach
+                <p class="text-xs text-gray-500">El precio en USD es obligatorio. Los demás precios son opcionales.</p>
 
                 <!-- Descuento -->
                 <div class="space-y-4" id="campo_descuento">

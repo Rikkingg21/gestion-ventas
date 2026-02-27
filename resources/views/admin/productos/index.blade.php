@@ -130,18 +130,25 @@
                         </span>
                     </td>
                     <td class="px-6 py-4">
-                        <div class="text-sm">
-                            <div class="font-medium text-gray-900">
-                                ${{ number_format($producto->precioUSD, 2) }}
-                                @if($producto->aplica_descuento && $producto->porcentaje_descuento)
-                                    <span class="ml-1 text-xs text-green-600 font-normal">
-                                        (-{{ $producto->porcentaje_descuento }}%)
+                        <div class="text-sm space-y-1">
+                            @forelse($producto->precios as $precio)
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium text-gray-900">
+                                        {{ $precio->moneda->simbolo }} {{ number_format($precio->precio, 2) }}
+                                        @if($producto->aplica_descuento && $producto->porcentaje_descuento)
+                                            <span class="ml-1 text-xs text-green-600 font-normal">
+                                                (-{{ $producto->porcentaje_descuento }}%)
+                                            </span>
+                                            <div class="text-xs text-gray-500">
+                                                → {{ $precio->moneda->simbolo }} {{ number_format($precio->precio * (1 - $producto->porcentaje_descuento/100), 2) }}
+                                            </div>
+                                        @endif
                                     </span>
-                                @endif
-                            </div>
-                            <div class="text-gray-600 text-xs">
-                                S/ {{ number_format($producto->precioLocal, 2) }}
-                            </div>
+                                    <span class="text-xs text-gray-500 ml-2">{{ $precio->moneda->codigo_iso }}</span>
+                                </div>
+                            @empty
+                                <span class="text-gray-400">Sin precio</span>
+                            @endforelse
                         </div>
                     </td>
                     <td class="px-6 py-4">

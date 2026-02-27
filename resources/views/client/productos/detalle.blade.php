@@ -14,146 +14,269 @@
         </ol>
     </nav>
 
-    <div class="row">
-        <div class="col-md-6">
-            <!-- Carrusel de imágenes -->
-            <div id="productoCarousel" class="carousel slide" data-bs-ride="carousel">
-                <div class="carousel-inner rounded-3 shadow">
-                    @php
-                        $images = [];
-                        for($i = 1; $i <= 5; $i++) {
-                            $imgField = "imagen_url_$i";
-                            if($producto->$imgField) {
-                                // Limpiar y formatear la URL de la imagen
-                                $url = $producto->$imgField;
+    <div class="row g-4">
+        <!-- Columna izquierda: Producto -->
+        <div class="col-lg-9">
+            <div class="row g-4">
+                <!-- Galería de imágenes -->
+                <div class="col-md-6">
+                    <!-- Imagen principal -->
+                    <div class="main-image-container mb-3">
+                        <img id="mainProductImage"
+                             src="{{ count($images) > 0 ? $images[0] : asset('images/placeholder.jpg') }}"
+                             class="img-fluid rounded-3 shadow w-100"
+                             alt="{{ $producto->nombre }}"
+                             style="height: 400px; object-fit: contain; background-color: #f8f9fa;"
+                             onerror="this.onerror=null; this.src='{{ asset('images/placeholder.jpg') }}';">
+                    </div>
 
-                                // Eliminar prefijos incorrectos
-                                $url = str_replace('/producto/', '/', $url);
-                                $url = str_replace('storage/storage/', 'storage/', $url);
-                                $url = str_replace('/storage/storage/', '/storage/', $url);
-
-                                // Si no es una URL completa, agregar asset()
-                                if (!filter_var($url, FILTER_VALIDATE_URL) && !str_starts_with($url, 'http')) {
-                                    // Asegurar que tenga el formato correcto
-                                    if (str_starts_with($url, 'storage/')) {
-                                        $url = asset($url);
-                                    } elseif (str_starts_with($url, '/storage/')) {
-                                        $url = asset(substr($url, 1));
-                                    } else {
-                                        $url = asset('storage/' . ltrim($url, '/'));
-                                    }
-                                }
-
-                                $images[] = $url;
-                            }
-                        }
-                    @endphp
-
+                    <!-- Miniaturas -->
                     @if(count($images) > 0)
-                        @foreach($images as $index => $image)
-                            <div class="carousel-item {{ $index == 0 ? 'active' : '' }}">
-                                <img src="{{ $image }}"
-                                     class="d-block w-100"
-                                     alt="{{ $producto->nombre }} - Imagen {{ $index + 1 }}"
-                                     style="height: 400px; object-fit: contain;"
-                                     onerror="this.onerror=null; this.src='{{ asset('images/placeholder.jpg') }}';">
-                            </div>
-                        @endforeach
-                    @else
-                        <div class="carousel-item active">
-                            <div class="bg-light d-flex align-items-center justify-content-center"
-                                 style="height: 400px;">
-                                <i class="fas fa-image fa-5x text-secondary"></i>
-                            </div>
+                        <div class="thumbnail-gallery d-flex gap-2 flex-wrap">
+                            @foreach($images as $index => $image)
+                                <div class="thumbnail-item {{ $index == 0 ? 'active' : '' }}"
+                                     onclick="changeMainImage('{{ $image }}', this)"
+                                     style="cursor: pointer; border: 2px solid {{ $index == 0 ? '#065f46' : 'transparent' }}; border-radius: 8px; overflow: hidden; transition: all 0.3s;">
+                                    <img src="{{ $image }}"
+                                         alt="Miniatura {{ $index + 1 }}"
+                                         style="width: 80px; height: 80px; object-fit: cover;"
+                                         onerror="this.onerror=null; this.src='{{ asset('images/placeholder-thumb.jpg') }}';">
+                                </div>
+                            @endforeach
                         </div>
                     @endif
                 </div>
 
-                @if(count($images) > 1)
-                    <button class="carousel-control-prev" type="button" data-bs-target="#productoCarousel" data-bs-slide="prev">
-                        <span class="carousel-control-prev-icon bg-success rounded-circle p-3" aria-hidden="true"></span>
-                        <span class="visually-hidden">Anterior</span>
-                    </button>
-                    <button class="carousel-control-next" type="button" data-bs-target="#productoCarousel" data-bs-slide="next">
-                        <span class="carousel-control-next-icon bg-success rounded-circle p-3" aria-hidden="true"></span>
-                        <span class="visually-hidden">Siguiente</span>
-                    </button>
-                @endif
+                <!-- Información del producto -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body">
+                            <!-- Etiquetas de estado -->
+                            <div class="d-flex gap-2 mb-3 flex-wrap">
+                                @if($productData['is_new'])
+                                    <span class="badge bg-success">Nuevo</span>
+                                @endif
+                                <span class="badge bg-warning text-dark">+5 vendidos</span>
+                            </div>
+
+                            <h1 class="fw-bold mb-3">{{ $producto->nombre }}</h1>
+
+                            <!-- Rating -->
+                            @if(isset($productData['rating']))
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="text-warning me-2">
+                                        @for($i = 1; $i <= 5; $i++)
+                                            @if($i <= floor($productData['rating']))
+                                                <i class="fas fa-star"></i>
+                                            @elseif($i - $productData['rating'] <= 0.5)
+                                                <i class="fas fa-star-half-alt"></i>
+                                            @else
+                                                <i class="far fa-star"></i>
+                                            @endif
+                                        @endfor
+                                    </div>
+                                    <span class="text-secondary">({{ $productData['total_reviews'] }} reseñas)</span>
+                                </div>
+                            @endif
+
+                            <!-- Precios con descuento -->
+                            @if($productData['precio_con_descuento']['tiene_descuento'])
+                                <div class="mb-3">
+                                    <span class="text-secondary text-decoration-line-through fs-5 me-2">
+                                        S/ {{ number_format($productData['precio_con_descuento']['precio_original_local'], 2) }}
+                                    </span>
+                                    <span class="fw-bold text-success fs-1">
+                                        S/ {{ number_format($productData['precio_con_descuento']['precio_final_local'], 2) }}
+                                    </span>
+                                    <span class="badge bg-success ms-2">
+                                        {{ $productData['precio_con_descuento']['porcentaje'] }}% OFF
+                                    </span>
+                                </div>
+                            @else
+                                <div class="mb-3">
+                                    <span class="fw-bold text-success fs-1">
+                                        S/ {{ number_format($productData['precio_con_descuento']['precio_final_local'], 2) }}
+                                    </span>
+                                </div>
+                            @endif
+
+                            <!-- Lo que tienes que saber -->
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Lo que tienes que saber de este producto</h6>
+                                <ul class="list-unstyled">
+                                    @foreach($productData['caracteristicas'] as $key => $value)
+                                        <li class="mb-2">
+                                            <i class="fas fa-check-circle text-success me-2"></i>
+                                            <strong>{{ $key }}:</strong> {{ $value }}
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+
+                            <!-- Stock para productos físicos -->
+                            @if($producto->esFisico() && $productData['stock_actual'] !== null)
+                                <div class="mb-4">
+                                    <span class="badge {{ $productData['stock_actual'] > 0 ? 'bg-success' : 'bg-danger' }} py-2 px-3">
+                                        <i class="fas {{ $productData['stock_actual'] > 0 ? 'fa-check-circle' : 'fa-times-circle' }} me-1"></i>
+                                        {{ $productData['stock_actual'] > 0 ? $productData['stock_actual'] . ' disponibles' : 'Agotado' }}
+                                    </span>
+                                </div>
+                            @endif
+
+                            <!-- Botones de acción -->
+                            <div class="d-grid gap-3">
+                                @if($producto->esFisico() && $productData['stock_actual'] == 0)
+                                    <button class="btn btn-secondary btn-lg" disabled>
+                                        <i class="fas fa-times-circle me-2"></i>
+                                        Producto no disponible
+                                    </button>
+                                @else
+                                    <button class="btn btn-success btn-lg" onclick="agregarAlCarrito({{ $producto->id }})">
+                                        <i class="fas fa-cart-plus me-2"></i>
+                                        Agregar al carrito
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="col-md-6">
-            <div class="card shadow-sm border-0">
+        <!-- Columna derecha: Carrito Sidebar -->
+        <div class="col-lg-3">
+            @include('client.partials.carrito-sidebar')
+
+            <!-- Productos relacionados -->
+            <div class="card shadow-sm border-0 mt-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-tag me-2"></i>Más productos
+                    </h6>
+                </div>
                 <div class="card-body">
-                    <h1 class="fw-bold mb-3">{{ $producto->nombre }}</h1>
-
-                    <div class="mb-3">
-                        <span class="badge bg-success bg-opacity-10 text-success py-2 px-3">
-                            <i class="fas fa-folder me-2"></i>{{ $producto->categoria->nombre }}
-                        </span>
-                        <span class="badge {{ $producto->tipo_producto == 'digital' ? 'bg-info' : 'bg-primary' }} ms-2 py-2 px-3">
-                            <i class="fas {{ $producto->tipo_producto == 'digital' ? 'fa-cloud' : 'fa-box' }} me-2"></i>
-                            {{ ucfirst($producto->tipo_producto) }}
-                        </span>
-                    </div>
-
-                    @if($producto->descripcion)
-                        <p class="text-secondary mb-4">{{ $producto->descripcion }}</p>
-                    @endif
-
-                    <hr>
-
-                    <div class="mb-4">
-                        <h5 class="fw-bold">Precios:</h5>
-                        @if($producto->precioUSD)
-                            <p class="mb-2"><strong>USD:</strong> <span class="fs-3 fw-bold text-success">${{ number_format($producto->precioUSD, 2) }}</span></p>
-                        @endif
-                        @if($producto->precioLocal)
-                            <p><strong>Local:</strong> <span class="fs-3 fw-bold text-success">${{ number_format($producto->precioLocal, 2) }}</span></p>
-                        @endif
-                    </div>
-
-                    @if($producto->esFisico() && $producto->stock)
-                        <div class="alert {{ $producto->stock->cantidad > 0 ? 'alert-success' : 'alert-danger' }} mb-4">
-                            <i class="fas {{ $producto->stock->cantidad > 0 ? 'fa-check-circle' : 'fa-exclamation-circle' }} me-2"></i>
-                            {{ $producto->stock->cantidad > 0 ? $producto->stock->cantidad . ' unidades disponibles' : 'Producto agotado' }}
-                        </div>
-                    @endif
-
-                    @if($producto->esDigital() && $producto->url_recurso)
-                        @php
-                            $recursoUrl = $producto->url_recurso;
-                            if (!filter_var($recursoUrl, FILTER_VALIDATE_URL) && !str_starts_with($recursoUrl, 'http')) {
-                                $recursoUrl = asset('storage/' . ltrim($recursoUrl, '/'));
-                            }
-                        @endphp
-                        <div class="mb-4">
-                            <a href="{{ $recursoUrl }}" target="_blank" class="btn btn-info text-white">
-                                <i class="fas fa-external-link-alt me-2"></i>Ver recurso digital
-                            </a>
-                        </div>
-                    @endif
-
-                    <div class="d-grid gap-3">
-                        <button class="btn btn-success btn-lg" onclick="agregarAlCarrito({{ $producto->id }})">
-                            <i class="fas fa-cart-plus me-2"></i>Agregar al carrito
-                        </button>
-                        <a href="{{ route('producto.index') }}" class="btn btn-outline-success btn-lg">
-                            <i class="fas fa-arrow-left me-2"></i>Seguir comprando
-                        </a>
-                    </div>
+                    <p class="text-secondary small mb-0">
+                        Ver más productos de {{ $producto->categoria->nombre }}
+                    </p>
+                    <!-- Aquí puedes agregar productos relacionados -->
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Script para el carrito (temporal) -->
-<script>
-    function agregarAlCarrito(id) {
-        // Aquí irá la lógica del carrito
-        alert('Producto agregado al carrito (funcionalidad en desarrollo)');
-        console.log('Producto ID:', id);
+<!-- Estilos adicionales -->
+<style>
+    .thumbnail-gallery {
+        overflow-x: auto;
+        padding-bottom: 10px;
     }
+
+    .thumbnail-item {
+        transition: all 0.3s ease;
+    }
+
+    .thumbnail-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .thumbnail-item.active {
+        border-color: #065f46 !important;
+    }
+
+    .main-image-container {
+        background-color: #f8f9fa;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    /* Scrollbar personalizado para miniaturas */
+    .thumbnail-gallery::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .thumbnail-gallery::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .thumbnail-gallery::-webkit-scrollbar-thumb {
+        background: #065f46;
+        border-radius: 10px;
+    }
+
+    .thumbnail-gallery::-webkit-scrollbar-thumb:hover {
+        background: #047857;
+    }
+
+    /* Rating stars */
+    .fa-star, .fa-star-half-alt {
+        color: #ffc107;
+    }
+</style>
+
+<!-- Script para cambiar imagen principal -->
+<script>
+function changeMainImage(imageUrl, element) {
+    document.getElementById('mainProductImage').src = imageUrl;
+
+    document.querySelectorAll('.thumbnail-item').forEach(item => {
+        item.style.borderColor = 'transparent';
+        item.classList.remove('active');
+    });
+
+    element.style.borderColor = '#065f46';
+    element.classList.add('active');
+}
+
+// Script para agregar al carrito (igual que antes)
+function agregarAlCarrito(productoId) {
+    const button = event.currentTarget;
+    const originalText = button.innerHTML;
+
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Agregando...';
+    button.disabled = true;
+
+    fetch(`/carrito/agregar/${productoId}`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ cantidad: 1 })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof window.actualizarSidebarCarrito === 'function') {
+                window.actualizarSidebarCarrito();
+            }
+
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion('Producto agregado al carrito', 'success');
+            }
+        } else {
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion(data.error || 'No se pudo agregar el producto', 'danger');
+            } else {
+                alert(data.error || 'No se pudo agregar el producto');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Error al agregar el producto', 'danger');
+        } else {
+            alert('Error al agregar el producto');
+        }
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
 </script>
 @endsection
