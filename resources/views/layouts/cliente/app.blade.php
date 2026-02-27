@@ -201,6 +201,78 @@
                         </li>
                     @endif
                 </ul>
+                <!-- En el navbar, antes del menú de usuario -->
+                <ul class="navbar-nav me-3">
+                    <!-- Selector de moneda/pais -->
+                    @if(isset($userGeoInfo))
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#"
+                        id="currencyDropdown" role="button" data-bs-toggle="dropdown">
+                            <span class="me-2">
+                                <i class="fas fa-map-marker-alt me-1"></i>
+                                <span class="flag-icon flag-icon-{{ $userGeoInfo['flag'] }} me-1"></span>
+                            </span>
+                            <span class="d-none d-lg-inline">
+                                {{ $userGeoInfo['country'] }} - {{ $userGeoInfo['currency']['symbol'] }} ({{ $userGeoInfo['currency']['code'] }})
+                            </span>
+                            <span class="d-lg-none">
+                                {{ $userGeoInfo['currency']['symbol'] }}
+                            </span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" style="min-width: 280px;">
+                            <li>
+                                <div class="dropdown-item-text">
+                                    <div class="d-flex align-items-center">
+                                        <span class="flag-icon flag-icon-{{ $userGeoInfo['flag'] }} me-3" style="font-size: 2rem;"></span>
+                                        <div>
+                                            <strong>{{ $userGeoInfo['country'] }}</strong><br>
+                                            <small class="text-muted">
+                                                @if(isset($userGeoInfo['moneda_preferida']))
+                                                    <i class="fas fa-star text-warning me-1"></i>Moneda preferida
+                                                @elseif(isset($userGeoInfo['moneda_seleccionada']))
+                                                    <i class="fas fa-check text-success me-1"></i>Seleccionada
+                                                @else
+
+                                                @endif
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <div class="dropdown-item-text">
+                                    <div class="mb-2"><strong>Moneda actual:</strong></div>
+                                    <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded">
+                                        <span>
+                                            <span class="fw-bold">{{ $userGeoInfo['currency']['name'] }}</span><br>
+                                            <small class="text-muted">{{ $userGeoInfo['currency']['code'] }}</small>
+                                        </span>
+                                        <span class="h3 mb-0">{{ $userGeoInfo['currency']['symbol'] }}</span>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <div class="dropdown-item-text">
+                                    <div class="mb-2"><strong>Cambiar moneda:</strong></div>
+                                    <div class="row g-1">
+                                        @foreach($monedasDisponibles as $moneda)
+                                        <div class="col-6">
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm w-100 mb-1"
+                                                    onclick="cambiarMoneda('{{ $moneda->codigo_iso }}')">
+                                                {{ $moneda->simbolo }} {{ $moneda->codigo_iso }}
+                                            </button>
+                                        </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </li>
+                    @endif
+                </ul>
 
                 <!-- Menú de usuario / Login -->
                 <ul class="navbar-nav">
@@ -274,6 +346,28 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ asset('js/carrito.js') }}"></script>
+    <script>
+        function cambiarMoneda(currencyCode) {
+            fetch('/cambiar-moneda', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ currency: currencyCode })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al cambiar la moneda');
+            });
+        }
+    </script>
     @stack('scripts')
 </body>
 </html>

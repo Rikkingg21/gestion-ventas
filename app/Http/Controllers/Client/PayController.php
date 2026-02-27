@@ -7,16 +7,18 @@ use Illuminate\Http\Request;
 use App\Models\Carrito;
 use App\Models\SolicitudPago;
 use App\Models\SolicitudPagoEstado;
+use App\Models\Moneda;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Helpers\GeoLocation;
 
 class PayController extends Controller
 {
     public function index()
     {
-        // Obtener el usuario autenticado (con cualquier guard, todos usan User)
+        // Obtener el usuario autenticado
         $user = Auth::guard('client')->user();
 
         if (!$user) {
@@ -26,15 +28,85 @@ class PayController extends Controller
         }
 
         // Obtener el cliente asociado al usuario
-        $cliente = $user->client; // Asumiendo que tienes esta relación en User
+        $cliente = $user->client;
 
         if (!$cliente) {
             return redirect()->route('client.login')
                 ->with('error', 'No tienes un perfil de cliente asociado');
         }
 
+        // ============================================
+        // MISMA LÓGICA DE MONEDA QUE EN PRODUCTOS
+        // ============================================
+        $monedaActual = null;
+        $codigoMonedaActual = 'USD'; // Default
+
+        // 1. PRIORIDAD MÁXIMA: Moneda seleccionada en sesión
+        if (session()->has('moneda_seleccionada')) {
+            $monedaSesion = Moneda::where('codigo_iso', session('moneda_seleccionada'))
+                ->where('is_active', true)
+                ->first();
+
+            if ($monedaSesion) {
+                $monedaActual = $monedaSesion;
+                $codigoMonedaActual = $monedaSesion->codigo_iso;
+            }
+        }
+
+        // 2. Si no hay moneda en sesión, usar país del cliente
+        if (!$monedaActual && $cliente && $cliente->pais) {
+            $monedaPorPais = Moneda::where('pais', $cliente->pais)
+                ->where('is_active', true)
+                ->first();
+
+            if ($monedaPorPais) {
+                $monedaActual = $monedaPorPais;
+                $codigoMonedaActual = $monedaPorPais->codigo_iso;
+            }
+        }
+
+        // 3. Si no hay moneda, intentar con geolocalización
+        if (!$monedaActual) {
+            try {
+                $geoInfo = GeoLocation::getCountryInfo();
+                if (isset($geoInfo['country'])) {
+                    $monedaPorGeo = Moneda::where('pais', $geoInfo['country'])
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($monedaPorGeo) {
+                        $monedaActual = $monedaPorGeo;
+                        $codigoMonedaActual = $monedaPorGeo->codigo_iso;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error en geolocalización checkout: ' . $e->getMessage());
+            }
+        }
+
+        // 4. USD como fallback
+        if (!$monedaActual) {
+            $monedaActual = Moneda::where('codigo_iso', 'USD')
+                ->where('is_active', true)
+                ->first();
+
+            if (!$monedaActual) {
+                $monedaActual = (object)[
+                    'id' => 0,
+                    'codigo_iso' => 'USD',
+                    'simbolo' => '$',
+                    'nombre' => 'Dólar Americano'
+                ];
+            }
+        }
+
+        // Obtener carrito activo del cliente
         $carrito = Carrito::activo()
-            ->with(['productos.producto'])
+            ->with(['productos' => function($query) {
+                $query->with(['producto' => function($q) {
+                    $q->with(['categoria', 'precios.moneda']);
+                }]);
+            }])
             ->where('cliente_id', $cliente->id)
             ->first();
 
@@ -43,17 +115,204 @@ class PayController extends Controller
                 ->with('error', 'Tu carrito está vacío');
         }
 
-        $items = $carrito->productos;
+        // Procesar items para mostrar en la moneda actual
+        $itemsProcesados = $carrito->productos->map(function($item) use ($monedaActual) {
+            $producto = $item->producto;
+
+            // Determinar qué precio mostrar según la moneda actual
+            $precioUnitarioActual = $item->precio_adquirido_usd; // Default USD
+            $subtotalActual = $item->subtotal_usd; // Default USD
+
+            if ($monedaActual->codigo_iso == 'PEN') {
+                $precioUnitarioActual = $item->precio_adquirido_local;
+                $subtotalActual = $item->subtotal_local;
+            }
+
+            return (object)[
+                'id' => $item->id,
+                'producto_id' => $item->producto_id,
+                'nombre' => $producto ? $producto->nombre : 'Producto no disponible',
+                'cantidad' => $item->cantidad,
+                'precio_unitario_usd' => $item->precio_adquirido_usd,
+                'precio_unitario_local' => $item->precio_adquirido_local,
+                'precio_unitario_actual' => $precioUnitarioActual,
+                'precio_unitario_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($precioUnitarioActual, 2),
+                'subtotal_usd' => $item->subtotal_usd,
+                'subtotal_local' => $item->subtotal_local,
+                'subtotal_actual' => $subtotalActual,
+                'subtotal_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($subtotalActual, 2),
+                'imagen' => $this->getImagenProducto($producto),
+                'tipo_producto' => $producto ? $producto->tipo_producto : null,
+                'es_fisico' => $producto ? $producto->esFisico() : false,
+                'es_digital' => $producto ? $producto->esDigital() : false,
+                'aplica_descuento' => $item->aplica_descuento,
+                'porcentaje_descuento' => $item->porcentaje_descuento,
+            ];
+        });
+
+        // Calcular totales en la moneda actual
+        $totalActual = $monedaActual->codigo_iso == 'PEN'
+            ? $carrito->total_local
+            : $carrito->total_usd;
+
         $totales = (object)[
+            'subtotal_usd' => $carrito->total_usd,
             'subtotal_local' => $carrito->total_local,
-            'total_local' => $carrito->total_local,
+            'subtotal_actual' => $totalActual,
+            'subtotal_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($totalActual, 2),
             'total_usd' => $carrito->total_usd,
-            'total_items' => $carrito->total_items
+            'total_local' => $carrito->total_local,
+            'total_actual' => $totalActual,
+            'total_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($totalActual, 2),
+            'total_items' => $carrito->total_items,
+            'moneda_actual' => $monedaActual
         ];
 
-        return view('client.checkout.index', compact('items', 'totales', 'carrito', 'user', 'cliente'));
+        // Obtener todas las monedas activas para el selector (opcional)
+        $monedasDisponibles = Moneda::where('is_active', true)
+            ->orderBy('codigo_iso')
+            ->get();
+
+        return view('client.checkout.index', compact(
+            'itemsProcesados',
+            'totales',
+            'carrito',
+            'user',
+            'cliente',
+            'monedaActual',
+            'monedasDisponibles'
+        ));
     }
 
+    /**
+     * Obtener imagen principal del producto
+     */
+    private function getImagenProducto($producto)
+    {
+        if (!$producto) return null;
+
+        for ($i = 1; $i <= 5; $i++) {
+            $campo = 'imagen_url_' . $i;
+            if ($producto->$campo) {
+                return $producto->getImageUrl($campo);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Procesar el pago (ejemplo)
+     */
+    public function procesarPago(Request $request)
+    {
+        // Aquí iría la lógica para procesar el pago
+        // Recibirías datos de la tarjeta, método de pago, etc.
+
+        try {
+            DB::beginTransaction();
+
+            $user = Auth::guard('client')->user();
+            $cliente = $user->client;
+
+            // Obtener moneda actual (misma lógica que en index)
+            $monedaActual = $this->getMonedaActual($cliente);
+
+            $carrito = Carrito::activo()
+                ->where('cliente_id', $cliente->id)
+                ->first();
+
+            if (!$carrito || $carrito->productos->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Carrito vacío'
+                ], 400);
+            }
+
+            // Crear solicitud de pago
+            $solicitud = SolicitudPago::create([
+                'cliente_id' => $cliente->id,
+                'monto' => $monedaActual->codigo_iso == 'PEN'
+                    ? $carrito->total_local
+                    : $carrito->total_usd,
+                'moneda' => $monedaActual->codigo_iso,
+                'estado' => 'pendiente',
+                // otros campos...
+            ]);
+
+            // Crear registro de estado
+            SolicitudPagoEstado::create([
+                'solicitud_pago_id' => $solicitud->id,
+                'estado' => 'pendiente',
+                'observaciones' => 'Pago iniciado'
+            ]);
+
+            // Aquí iría la integración con pasarela de pago
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pago procesado correctamente',
+                'redirect' => route('checkout.confirmacion', $solicitud->id)
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error al procesar pago: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al procesar el pago'
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper para obtener moneda actual
+     */
+    private function getMonedaActual($cliente)
+    {
+        // 1. Moneda en sesión
+        if (session()->has('moneda_seleccionada')) {
+            $moneda = Moneda::where('codigo_iso', session('moneda_seleccionada'))
+                ->where('is_active', true)
+                ->first();
+            if ($moneda) return $moneda;
+        }
+
+        // 2. País del cliente
+        if ($cliente && $cliente->pais) {
+            $moneda = Moneda::where('pais', $cliente->pais)
+                ->where('is_active', true)
+                ->first();
+            if ($moneda) return $moneda;
+        }
+
+        // 3. Geolocalización
+        try {
+            $geoInfo = GeoLocation::getCountryInfo();
+            if (isset($geoInfo['country'])) {
+                $moneda = Moneda::where('pais', $geoInfo['country'])
+                    ->where('is_active', true)
+                    ->first();
+                if ($moneda) return $moneda;
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error en geolocalización: ' . $e->getMessage());
+        }
+
+        // 4. USD por defecto
+        $moneda = Moneda::where('codigo_iso', 'USD')->first();
+        if ($moneda) return $moneda;
+
+        // 5. Fallback extremo
+        return (object)[
+            'id' => 0,
+            'codigo_iso' => 'USD',
+            'simbolo' => '$',
+            'nombre' => 'Dólar Americano'
+        ];
+    }
     public function store(Request $request)
     {
         $request->validate([

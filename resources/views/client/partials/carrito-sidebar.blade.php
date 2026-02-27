@@ -28,7 +28,9 @@
         <div class="cart-summary p-3 border-top">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-secondary">Subtotal:</span>
-                <span class="fw-bold" id="cartSubtotal">$0.00</span>
+                <span class="fw-bold" id="cartSubtotal">
+                    {{ isset($moneda_actual) ? $moneda_actual->simbolo : '$' }}0.00
+                </span>
             </div>
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <span class="text-secondary">Total items:</span>
@@ -37,7 +39,9 @@
             <hr class="my-2">
             <div class="d-flex justify-content-between align-items-center fw-bold fs-5 mb-3">
                 <span>Total:</span>
-                <span class="text-success" id="cartTotal">$0.00</span>
+                <span class="text-success" id="cartTotal">
+                    {{ isset($moneda_actual) ? $moneda_actual->simbolo : '$' }}0.00
+                </span>
             </div>
 
             <a href="{{ route('carrito.ver') }}"
@@ -50,7 +54,7 @@
             @if(($totalItems ?? 0) > 0)
                 <small class="text-muted d-block text-center mt-2">
                     <i class="fas fa-info-circle me-1"></i>
-                    Envío calculado en el siguiente paso
+                    Mostrando en {{ isset($moneda_actual) ? $moneda_actual->nombre : 'USD' }}
                 </small>
             @endif
         </div>

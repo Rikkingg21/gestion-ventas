@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Categoria;
 use App\Models\Producto;
 use App\Models\Carrito;
+use App\Models\Moneda;
 use App\Models\CarritoProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use App\Helpers\GeoLocation;
 
 class ProductosController extends Controller
 {
@@ -20,17 +23,210 @@ class ProductosController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        // Obtener productos activos con sus relaciones
+        // Obtener productos activos con todas sus relaciones
         $productos = Producto::active()
-            ->with(['categoria', 'stock'])
+            ->with(['categoria', 'stock', 'precios.moneda'])
             ->orderBy('nombre')
             ->get();
 
-        // Obtener el carrito actual para mostrar contador
+        // Obtener el carrito actual
         $carrito = $this->obtenerCarritoActual();
         $totalItems = $carrito ? $carrito->total_items : 0;
 
-        return view('client.productos.index', compact('categorias', 'productos', 'totalItems'));
+        // LÓGICA MEJORADA DE MONEDA - CON PRIORIDAD A SESIÓN
+        $monedaActual = null;
+        $codigoMonedaActual = 'USD'; // Default final siempre USD
+
+        // 1. PRIORIDAD MÁXIMA: Moneda seleccionada en sesión (desde el layout)
+        if (session()->has('moneda_seleccionada')) {
+            $monedaSesion = Moneda::where('codigo_iso', session('moneda_seleccionada'))
+                ->where('is_active', true)
+                ->first();
+
+            if ($monedaSesion) {
+                $monedaActual = $monedaSesion;
+                $codigoMonedaActual = $monedaSesion->codigo_iso;
+            }
+        }
+
+        // 2. Si no hay moneda en sesión, verificar usuario autenticado
+        if (!$monedaActual && Auth::guard('client')->check()) {
+            $user = Auth::guard('client')->user();
+            $cliente = $user->client;
+
+            if ($cliente && $cliente->pais) {
+                // Buscar moneda por el país del cliente
+                $monedaPorPais = Moneda::where('pais', $cliente->pais)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($monedaPorPais) {
+                    $monedaActual = $monedaPorPais;
+                    $codigoMonedaActual = $monedaPorPais->codigo_iso;
+                }
+            }
+        }
+
+        // 3. Si no hay moneda (ni sesión, ni cliente autenticado), intentar con geolocalización
+        if (!$monedaActual) {
+            $geoInfo = GeoLocation::getCountryInfo();
+
+            if (isset($geoInfo['country'])) {
+                // Buscar moneda por el país detectado
+                $monedaPorGeo = Moneda::where('pais', $geoInfo['country'])
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($monedaPorGeo) {
+                    $monedaActual = $monedaPorGeo;
+                    $codigoMonedaActual = $monedaPorGeo->codigo_iso;
+                }
+            }
+        }
+
+        // 4. Si aún no hay moneda, usar USD como último recurso
+        if (!$monedaActual) {
+            $monedaActual = Moneda::where('codigo_iso', 'USD')
+                ->where('is_active', true)
+                ->first();
+
+            // Si por alguna razón no existe USD en BD, usar la primera disponible
+            if (!$monedaActual) {
+                $monedaActual = Moneda::where('is_active', true)->first();
+                if ($monedaActual) {
+                    $codigoMonedaActual = $monedaActual->codigo_iso;
+                } else {
+                    // Fallback extremo - datos quemados (no debería pasar)
+                    $monedaActual = (object)[
+                        'id' => 0,
+                        'codigo_iso' => 'USD',
+                        'simbolo' => '$',
+                        'nombre' => 'Dólar Americano'
+                    ];
+                }
+            } else {
+                $codigoMonedaActual = 'USD';
+            }
+        }
+
+        // PROCESAR CADA PRODUCTO CON SUS PRECIOS
+        $productosProcesados = $productos->map(function($producto) use ($monedaActual) {
+            // Buscar precio en moneda actual
+            $precioEnMonedaActual = $producto->precios
+                ->where('moneda_id', $monedaActual->id)
+                ->where('is_active', true)
+                ->first();
+
+            // Si no hay precio en la moneda actual, buscar USD
+            if (!$precioEnMonedaActual) {
+                $precioEnMonedaActual = $producto->precios
+                    ->where('moneda.codigo_iso', 'USD')
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            // Si aún no hay, tomar el primer precio disponible
+            if (!$precioEnMonedaActual) {
+                $precioEnMonedaActual = $producto->precios
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            // Procesar imágenes
+            $imagenes = [];
+            for($i = 1; $i <= 5; $i++) {
+                $imgField = "imagen_url_$i";
+                if($producto->$imgField) {
+                    $imagenes[] = $producto->getImageUrl($imgField);
+                }
+            }
+
+            // Calcular precios con descuento
+            $precioOriginal = $precioEnMonedaActual ? $precioEnMonedaActual->precio : 0;
+            $precioConDescuento = $precioOriginal;
+            $ahorro = 0;
+
+            if ($producto->aplica_descuento && $producto->porcentaje_descuento > 0) {
+                $descuento = $producto->porcentaje_descuento / 100;
+                $precioConDescuento = $precioOriginal * (1 - $descuento);
+                $ahorro = $precioOriginal - $precioConDescuento;
+            }
+
+            // Obtener otras monedas disponibles (excluyendo la actual)
+            $otrasMonedas = $producto->precios
+                ->where('is_active', true)
+                ->where('moneda_id', '!=', $monedaActual->id)
+                ->take(3)
+                ->map(function($precio) {
+                    return [
+                        'simbolo' => $precio->moneda->simbolo,
+                        'precio' => number_format($precio->precio, 0),
+                        'codigo' => $precio->moneda->codigo_iso
+                    ];
+                });
+
+            return (object)[
+                'id' => $producto->id,
+                'nombre' => $producto->nombre,
+                'descripcion_corta' => Str::limit($producto->descripcion, 60),
+                'tipo_producto' => $producto->tipo_producto,
+                'categoria' => $producto->categoria,
+                'sku' => $producto->sku,
+                'url_recurso' => $producto->url_recurso,
+                'aplica_descuento' => $producto->aplica_descuento,
+                'porcentaje_descuento' => $producto->porcentaje_descuento,
+                'is_active' => $producto->is_active,
+                'imagenes' => $imagenes,
+                'stock_actual' => $producto->getStockActualAttribute(),
+                'es_fisico' => $producto->esFisico(),
+                'es_digital' => $producto->esDigital(),
+
+                // Datos de precio procesados
+                'moneda_actual' => [
+                    'codigo' => $monedaActual->codigo_iso,
+                    'simbolo' => $monedaActual->simbolo,
+                    'nombre' => $monedaActual->nombre,
+                    'id' => $monedaActual->id
+                ],
+                'precio_original' => $precioOriginal,
+                'precio_original_formateado' => $monedaActual->simbolo . ' ' . number_format($precioOriginal, 2),
+                'precio_con_descuento' => $precioConDescuento,
+                'precio_con_descuento_formateado' => $monedaActual->simbolo . ' ' . number_format($precioConDescuento, 2),
+                'ahorro' => $ahorro,
+                'ahorro_formateado' => $monedaActual->simbolo . ' ' . number_format($ahorro, 2),
+                'otras_monedas' => $otrasMonedas,
+                'tiene_descuento' => $producto->aplica_descuento && $producto->porcentaje_descuento > 0,
+                'tiene_stock' => $producto->esFisico() ? ($producto->getStockActualAttribute() > 0) : true,
+                'stock_disponible' => $producto->esFisico() ? $producto->getStockActualAttribute() : 'Ilimitado',
+                'clase_stock' => $producto->esFisico()
+                    ? ($producto->getStockActualAttribute() > 0 ? 'success' : 'danger')
+                    : 'info',
+                'icono_stock' => $producto->esFisico()
+                    ? ($producto->getStockActualAttribute() > 0 ? 'fa-check-circle' : 'fa-times-circle')
+                    : 'fa-infinity',
+                'texto_stock' => $producto->esFisico()
+                    ? ($producto->getStockActualAttribute() > 0 ? $producto->getStockActualAttribute() . ' disponibles' : 'Agotado')
+                    : 'Stock ilimitado',
+
+                // Información adicional útil
+                'moneda_origen' => $precioEnMonedaActual && $precioEnMonedaActual->moneda
+                    ? $precioEnMonedaActual->moneda->codigo_iso
+                    : 'USD'
+            ];
+        });
+
+        // Obtener información de geolocalización para la vista
+        $userGeoInfo = null;
+        $userGeoInfo = GeoLocation::getCountryInfo();
+
+        return view('client.productos.index', compact(
+            'categorias',
+            'productosProcesados',
+            'totalItems',
+            'monedaActual',
+            'codigoMonedaActual',
+            'userGeoInfo'
+        ));
     }
 
     // Agregar producto al carrito
@@ -183,10 +379,94 @@ class ProductosController extends Controller
     }
 
     // Ver carrito
-   public function verCarrito(Request $request)
+    public function verCarrito(Request $request)
     {
+        // Obtener el carrito actual
         $carrito = $this->obtenerCarritoActual();
 
+        // ============================================
+        // MISMA LÓGICA DE MONEDA QUE EN INDEX
+        // ============================================
+        $monedaActual = null;
+        $codigoMonedaActual = 'USD'; // Default final siempre USD
+
+        // 1. PRIORIDAD MÁXIMA: Moneda seleccionada en sesión (desde el layout)
+        if (session()->has('moneda_seleccionada')) {
+            $monedaSesion = Moneda::where('codigo_iso', session('moneda_seleccionada'))
+                ->where('is_active', true)
+                ->first();
+
+            if ($monedaSesion) {
+                $monedaActual = $monedaSesion;
+                $codigoMonedaActual = $monedaSesion->codigo_iso;
+            }
+        }
+
+        // 2. Si no hay moneda en sesión, verificar usuario autenticado
+        if (!$monedaActual && Auth::guard('client')->check()) {
+            $user = Auth::guard('client')->user();
+            $cliente = $user->client;
+
+            if ($cliente && $cliente->pais) {
+                // Buscar moneda por el país del cliente
+                $monedaPorPais = Moneda::where('pais', $cliente->pais)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($monedaPorPais) {
+                    $monedaActual = $monedaPorPais;
+                    $codigoMonedaActual = $monedaPorPais->codigo_iso;
+                }
+            }
+        }
+
+        // 3. Si no hay moneda (ni sesión, ni cliente autenticado), intentar con geolocalización
+        if (!$monedaActual) {
+            try {
+                $geoInfo = GeoLocation::getCountryInfo();
+
+                if (isset($geoInfo['country'])) {
+                    // Buscar moneda por el país detectado
+                    $monedaPorGeo = Moneda::where('pais', $geoInfo['country'])
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($monedaPorGeo) {
+                        $monedaActual = $monedaPorGeo;
+                        $codigoMonedaActual = $monedaPorGeo->codigo_iso;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Error al obtener geolocalización en verCarrito: ' . $e->getMessage());
+            }
+        }
+
+        // 4. Si aún no hay moneda, usar USD como último recurso
+        if (!$monedaActual) {
+            $monedaActual = Moneda::where('codigo_iso', 'USD')
+                ->where('is_active', true)
+                ->first();
+
+            // Si por alguna razón no existe USD en BD, usar la primera disponible
+            if (!$monedaActual) {
+                $monedaActual = Moneda::where('is_active', true)->first();
+                if ($monedaActual) {
+                    $codigoMonedaActual = $monedaActual->codigo_iso;
+                } else {
+                    // Fallback extremo - datos quemados (no debería pasar)
+                    $monedaActual = (object)[
+                        'id' => 0,
+                        'codigo_iso' => 'USD',
+                        'simbolo' => '$',
+                        'nombre' => 'Dólar Americano'
+                    ];
+                }
+            } else {
+                $codigoMonedaActual = 'USD';
+            }
+        }
+
+        // Si no hay carrito
         if (!$carrito) {
             if ($request->wantsJson()) {
                 return response()->json([
@@ -197,96 +477,170 @@ class ProductosController extends Controller
                         'total_local' => 0,
                         'total_items' => 0,
                         'subtotal_usd' => 0,
-                        'subtotal_local' => 0
+                        'subtotal_local' => 0,
+                        'moneda_actual' => [
+                            'codigo' => $monedaActual->codigo_iso,
+                            'simbolo' => $monedaActual->simbolo,
+                            'nombre' => $monedaActual->nombre
+                        ]
                     ],
                     'carrito_vacio' => true
                 ]);
             }
 
-            return view('client.carrito.index', [
-                'items' => collect(),
-                'totales' => (object)[
-                    'total_usd' => 0,
-                    'total_local' => 0,
-                    'total_items' => 0,
-                    'subtotal_usd' => 0,
-                    'subtotal_local' => 0
-                ]
-            ]);
+            $totales = (object)[
+                'total_usd' => 0,
+                'total_local' => 0,
+                'total_items' => 0,
+                'subtotal_usd' => 0,
+                'subtotal_local' => 0,
+                'moneda_actual' => $monedaActual
+            ];
+
+            return view('client.carrito.index', compact('totales', 'monedaActual'));
         }
 
         // Cargar productos con sus relaciones
         $carrito->load(['productos' => function($query) {
             $query->with(['producto' => function($q) {
-                $q->with('categoria');
+                $q->with(['categoria', 'precios.moneda', 'stock']);
             }]);
         }]);
 
-        if ($request->wantsJson()) {
-            // Formatear items para el frontend
-            $itemsFormateados = $carrito->productos->map(function($item) {
-                $producto = $item->producto;
+        // Procesar items del carrito para mostrar en la moneda actual
+        $itemsProcesados = $carrito->productos->map(function($item) use ($monedaActual) {
+            $producto = $item->producto;
 
-                // Obtener imagen principal
-                $imagenPrincipal = null;
+            // Buscar el precio del producto en la moneda actual para referencia
+            $precioEnMonedaActual = null;
+            if ($producto) {
+                $precioEnMonedaActual = $producto->precios
+                    ->where('moneda_id', $monedaActual->id)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            // Obtener imagen principal
+            $imagenPrincipal = null;
+            if ($producto) {
                 for ($i = 1; $i <= 5; $i++) {
                     $campo = 'imagen_url_' . $i;
-                    if ($producto && $producto->$campo) {
+                    if ($producto->$campo) {
                         $imagenPrincipal = $producto->getImageUrl($campo);
                         break;
                     }
                 }
+            }
 
-                return [
-                    'id' => $item->id,
-                    'producto_id' => $item->producto_id,
-                    'nombre' => $producto ? $producto->nombre : 'Producto no disponible',
-                    'cantidad' => $item->cantidad,
-                    'precio_unitario_usd' => $item->precio_adquirido_usd,
-                    'precio_unitario_local' => $item->precio_adquirido_local,
-                    'subtotal_usd' => $item->subtotal_usd,
-                    'subtotal_local' => $item->subtotal_local,
-                    'imagen' => $imagenPrincipal,
-                    'tipo_producto' => $producto ? $producto->tipo_producto : null,
-                    'sku' => $producto ? $producto->sku : null,
-                    'aplica_descuento' => $item->aplica_descuento,
-                    'porcentaje_descuento' => $item->porcentaje_descuento,
-                    'es_fisico' => $producto ? $producto->esFisico() : false,
-                    'es_digital' => $producto ? $producto->esDigital() : false,
-                    'stock_disponible' => $producto && $producto->esFisico() ? ($producto->stock->cantidad ?? 0) : null,
-                    'categoria' => $producto && $producto->categoria ? $producto->categoria->nombre : null,
-                    'url_recurso' => $producto && $producto->esDigital() ? $producto->url_recurso : null
-                ];
-            });
+            // Determinar qué precio mostrar según la moneda actual
+            $precioUnitarioActual = $item->precio_adquirido_usd; // Default USD
+            $subtotalActual = $item->subtotal_usd; // Default USD
 
+            if ($monedaActual->codigo_iso == 'PEN') {
+                $precioUnitarioActual = $item->precio_adquirido_local;
+                $subtotalActual = $item->subtotal_local;
+            }
+
+            return (object)[
+                'id' => $item->id,
+                'producto_id' => $item->producto_id,
+                'nombre' => $producto ? $producto->nombre : 'Producto no disponible',
+                'cantidad' => $item->cantidad,
+                'precio_unitario_usd' => $item->precio_adquirido_usd,
+                'precio_unitario_local' => $item->precio_adquirido_local,
+                'precio_unitario_actual' => $precioUnitarioActual,
+                'precio_unitario_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($precioUnitarioActual, 2),
+                'subtotal_usd' => $item->subtotal_usd,
+                'subtotal_local' => $item->subtotal_local,
+                'subtotal_actual' => $subtotalActual,
+                'subtotal_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($subtotalActual, 2),
+                'imagen' => $imagenPrincipal,
+                'tipo_producto' => $producto ? $producto->tipo_producto : null,
+                'sku' => $producto ? $producto->sku : null,
+                'aplica_descuento' => $item->aplica_descuento,
+                'porcentaje_descuento' => $item->porcentaje_descuento,
+                'es_fisico' => $producto ? $producto->esFisico() : false,
+                'es_digital' => $producto ? $producto->esDigital() : false,
+                'stock_disponible' => $producto && $producto->esFisico() ? ($producto->stock->cantidad ?? 0) : null,
+                'categoria' => $producto && $producto->categoria ? $producto->categoria->nombre : null,
+                'url_recurso' => $producto && $producto->esDigital() ? $producto->url_recurso : null,
+                'precio_referencia' => $precioEnMonedaActual ? [
+                    'simbolo' => $monedaActual->simbolo,
+                    'precio' => $precioEnMonedaActual->precio,
+                    'formateado' => $monedaActual->simbolo . ' ' . number_format($precioEnMonedaActual->precio, 2)
+                ] : null
+            ];
+        });
+
+        // Calcular totales en la moneda actual
+        $totalActual = $monedaActual->codigo_iso == 'PEN'
+            ? $carrito->total_local
+            : $carrito->total_usd;
+
+        $totales = (object)[
+            'total_usd' => $carrito->total_usd,
+            'total_local' => $carrito->total_local,
+            'total_actual' => $totalActual,
+            'total_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($totalActual, 2),
+            'total_items' => $carrito->total_items,
+            'subtotal_usd' => $carrito->total_usd,
+            'subtotal_local' => $carrito->total_local,
+            'subtotal_actual' => $totalActual,
+            'subtotal_actual_formateado' => $monedaActual->simbolo . ' ' . number_format($totalActual, 2),
+            'moneda_actual' => $monedaActual
+        ];
+
+        // Respuesta JSON para peticiones AJAX
+        if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'items' => $itemsFormateados,
+                'items' => $itemsProcesados->map(function($item) {
+                    return [
+                        'id' => $item->id,
+                        'producto_id' => $item->producto_id,
+                        'nombre' => $item->nombre,
+                        'cantidad' => $item->cantidad,
+                        'precio_unitario_usd' => $item->precio_unitario_usd,
+                        'precio_unitario_local' => $item->precio_unitario_local,
+                        'precio_unitario_actual' => $item->precio_unitario_actual,
+                        'precio_unitario_actual_formateado' => $item->precio_unitario_actual_formateado,
+                        'subtotal_usd' => $item->subtotal_usd,
+                        'subtotal_local' => $item->subtotal_local,
+                        'subtotal_actual' => $item->subtotal_actual,
+                        'subtotal_actual_formateado' => $item->subtotal_actual_formateado,
+                        'imagen' => $item->imagen,
+                        'tipo_producto' => $item->tipo_producto,
+                        'sku' => $item->sku,
+                        'aplica_descuento' => $item->aplica_descuento,
+                        'porcentaje_descuento' => $item->porcentaje_descuento,
+                        'es_fisico' => $item->es_fisico,
+                        'es_digital' => $item->es_digital,
+                        'stock_disponible' => $item->stock_disponible,
+                        'categoria' => $item->categoria
+                    ];
+                }),
                 'totales' => [
-                    'total_usd' => $carrito->total_usd,
-                    'total_local' => $carrito->total_local,
-                    'total_items' => $carrito->total_items,
-                    'subtotal_usd' => $carrito->total_usd,
-                    'subtotal_local' => $carrito->total_local
+                    'total_usd' => $totales->total_usd,
+                    'total_local' => $totales->total_local,
+                    'total_actual' => $totales->total_actual,
+                    'total_actual_formateado' => $totales->total_actual_formateado,
+                    'total_items' => $totales->total_items,
+                    'subtotal_usd' => $totales->subtotal_usd,
+                    'subtotal_local' => $totales->subtotal_local,
+                    'subtotal_actual' => $totales->subtotal_actual,
+                    'subtotal_actual_formateado' => $totales->subtotal_actual_formateado,
+                    'moneda_actual' => [
+                        'codigo' => $monedaActual->codigo_iso,
+                        'simbolo' => $monedaActual->simbolo,
+                        'nombre' => $monedaActual->nombre
+                    ]
                 ],
                 'carrito_id' => $carrito->id,
                 'carrito_vacio' => $carrito->productos->isEmpty()
             ]);
         }
 
-        $totales = (object)[
-            'total_usd' => $carrito->total_usd,
-            'total_local' => $carrito->total_local,
-            'total_items' => $carrito->total_items,
-            'subtotal_usd' => $carrito->total_usd,
-            'subtotal_local' => $carrito->total_local
-        ];
-
-        return view('client.carrito.index', [
-            'items' => $carrito->productos,
-            'totales' => $totales,
-            'carrito_id' => $carrito->id
-        ]);
+        return view('client.carrito.index', compact('itemsProcesados', 'totales', 'carrito', 'monedaActual'));
     }
 
     // Eliminar producto del carrito
@@ -409,8 +763,6 @@ class ProductosController extends Controller
             Session::put('carrito_id', $carrito->id);
             return $carrito;
         }
-
-        Log::info('No se encontró ningún carrito activo');
         return null;
     }
 

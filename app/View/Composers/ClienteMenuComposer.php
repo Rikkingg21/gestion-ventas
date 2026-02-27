@@ -3,9 +3,12 @@
 namespace App\View\Composers;
 
 use App\Models\Module;
+use App\Models\Moneda;
+use App\Helpers\GeoLocation;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ClienteMenuComposer
 {
@@ -21,6 +24,56 @@ class ClienteMenuComposer
             Log::warning('Error al verificar autenticación: ' . $e->getMessage());
         }
 
+        // GEO LOCALIZACIÓN - DETECCIÓN DE PAÍS Y MONEDA
+        try {
+            // Intentar obtener de caché primero
+            $geoInfo = Cache::remember('geo_' . request()->ip(), now()->addHours(6), function () {
+                return GeoLocation::getCountryInfo();
+            });
+
+            // Obtener moneda de la base de datos basada en el código detectado
+            $monedaDetectada = Moneda::where('codigo_iso', $geoInfo['currency']['code'])
+                ->where('is_active', true)
+                ->first();
+
+            // Si hay moneda preferida en sesión (seleccionada por el usuario), usarla
+            if (session()->has('moneda_seleccionada')) {
+                $monedaUsuario = Moneda::where('codigo_iso', session('moneda_seleccionada'))
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($monedaUsuario) {
+                    $geoInfo['currency'] = [
+                        'code' => $monedaUsuario->codigo_iso,
+                        'symbol' => $monedaUsuario->simbolo,
+                        'name' => $monedaUsuario->nombre,
+                        'id' => $monedaUsuario->id
+                    ];
+                    $geoInfo['moneda_seleccionada'] = true;
+                }
+            }
+            // Si no hay moneda seleccionada pero tenemos moneda detectada en BD
+            elseif ($monedaDetectada) {
+                $geoInfo['currency'] = [
+                    'code' => $monedaDetectada->codigo_iso,
+                    'symbol' => $monedaDetectada->simbolo,
+                    'name' => $monedaDetectada->nombre,
+                    'id' => $monedaDetectada->id
+                ];
+                $geoInfo['moneda_detectada'] = true;
+            }
+
+            // Obtener todas las monedas activas para el selector
+            $monedasDisponibles = Moneda::where('is_active', true)
+                ->orderBy('codigo_iso')
+                ->get();
+
+        } catch (\Exception $e) {
+            Log::error('Error en geolocalización: ' . $e->getMessage());
+            $geoInfo = GeoLocation::getDefaultCountry();
+            $monedasDisponibles = collect([]);
+        }
+
         // Si el usuario NO está autenticado, mostrar solo módulos públicos
         if (!$isAuthenticated || !$user) {
             $publicModules = $this->getPublicModules();
@@ -29,16 +82,17 @@ class ClienteMenuComposer
                 'menuModules' => collect([]),
                 'publicModules' => $publicModules,
                 'isAuthenticated' => false,
-                'currentUser' => null
+                'currentUser' => null,
+                // Datos de geolocalización
+                'userGeoInfo' => $geoInfo,
+                'monedasDisponibles' => $monedasDisponibles
             ]);
         }
 
         // Usuario autenticado - verificar si tiene relación con client
         try {
-            // IMPORTANTE: Usar client() en lugar de cliente
-            $cliente = $user->client; // Esto carga la relación definida en el modelo User
+            $cliente = $user->client;
 
-            // Si el usuario no tiene un registro en clients, mostrar solo módulos públicos
             if (!$cliente) {
                 Log::info('Usuario autenticado pero no es cliente: ' . $user->id);
 
@@ -46,7 +100,10 @@ class ClienteMenuComposer
                     'menuModules' => collect([]),
                     'publicModules' => $this->getPublicModules(),
                     'isAuthenticated' => true,
-                    'currentUser' => $user
+                    'currentUser' => $user,
+                    // Datos de geolocalización
+                    'userGeoInfo' => $geoInfo,
+                    'monedasDisponibles' => $monedasDisponibles
                 ]);
             }
 
@@ -54,66 +111,43 @@ class ClienteMenuComposer
             if (!$cliente->is_active) {
                 Log::info('Cliente inactivo: ' . $user->id);
 
-                // Opcional: podrías forzar el logout aquí si quieres
-                // Auth::guard('client')->logout();
-
                 return $view->with([
                     'menuModules' => collect([]),
                     'publicModules' => $this->getPublicModules(),
                     'isAuthenticated' => true,
-                    'currentUser' => $user
+                    'currentUser' => $user,
+                    // Datos de geolocalización
+                    'userGeoInfo' => $geoInfo,
+                    'monedasDisponibles' => $monedasDisponibles
                 ]);
             }
 
-            // Obtener permisos del cliente
-            // Nota: Veo que en tu modelo Client no tienes definida la relación 'permisos'
-            // Deberías tener algo como:
-            // return $this->belongsToMany(Module::class, 'client_permisos')->withPivot('permiso_id');
+            // Si el cliente tiene moneda preferida en su perfil, usarla
+            if ($cliente->moneda_preferida && !session()->has('moneda_seleccionada')) {
+                $monedaPreferida = Moneda::find($cliente->moneda_preferida);
+                if ($monedaPreferida) {
+                    $geoInfo['currency'] = [
+                        'code' => $monedaPreferida->codigo_iso,
+                        'symbol' => $monedaPreferida->simbolo,
+                        'name' => $monedaPreferida->nombre,
+                        'id' => $monedaPreferida->id
+                    ];
+                    $geoInfo['moneda_preferida'] = true;
+                }
+            }
 
-            // Por ahora, asumamos que no hay permisos específicos para clientes
-            // y mostramos todos los módulos públicos
+            // Obtener módulos públicos
             $publicModules = $this->getPublicModules();
 
             return $view->with([
-                'menuModules' => collect([]), // Si no tienes módulos privados para clientes
+                'menuModules' => collect([]),
                 'publicModules' => $publicModules,
                 'isAuthenticated' => true,
-                'currentUser' => $user
+                'currentUser' => $user,
+                // Datos de geolocalización
+                'userGeoInfo' => $geoInfo,
+                'monedasDisponibles' => $monedasDisponibles
             ]);
-
-            // Si en el futuro tienes permisos para clientes, podrías hacer algo como:
-            /*
-            // Obtener IDs de módulos donde tiene permiso de lectura
-            $modulosLecturaIds = $cliente->permisos()
-                ->where('permiso_id', 2)
-                ->pluck('module_id')
-                ->toArray();
-
-            // Obtener módulos padres con sus hijos permitidos
-            $modules = Module::with(['children' => function($query) use ($modulosLecturaIds) {
-                $query->whereIn('id', $modulosLecturaIds)
-                      ->where('is_active', true)
-                      ->orderBy('order_position');
-            }])
-            ->where('is_active', true)
-            ->whereNull('parent_id')
-            ->orderBy('order_position')
-            ->get();
-
-            // Filtrar módulos padres
-            $modules = $modules->filter(function($module) use ($modulosLecturaIds) {
-                $hasDirectPermission = in_array($module->id, $modulosLecturaIds);
-                $hasChildrenWithPermission = $module->children->isNotEmpty();
-                return $hasDirectPermission || $hasChildrenWithPermission;
-            });
-
-            return $view->with([
-                'menuModules' => $modules,
-                'publicModules' => $this->getPublicModules(),
-                'isAuthenticated' => true,
-                'currentUser' => $user
-            ]);
-            */
 
         } catch (\Exception $e) {
             Log::error('Error al obtener datos del cliente: ' . $e->getMessage(), [
@@ -125,7 +159,10 @@ class ClienteMenuComposer
                 'menuModules' => collect([]),
                 'publicModules' => $this->getPublicModules(),
                 'isAuthenticated' => true,
-                'currentUser' => $user
+                'currentUser' => $user,
+                // Datos de geolocalización
+                'userGeoInfo' => $geoInfo,
+                'monedasDisponibles' => $monedasDisponibles
             ]);
         }
     }

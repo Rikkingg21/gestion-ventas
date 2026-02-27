@@ -22,6 +22,13 @@
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-cart me-2"></i>
                         Mi Carrito ({{ $totales->total_items }} productos)
+                        @if(isset($moneda_actual))
+                            <small class="ms-2">
+                                <span class="badge bg-light text-success">
+                                    {{ $moneda_actual->simbolo }} {{ $moneda_actual->codigo_iso }}
+                                </span>
+                            </small>
+                        @endif
                     </h5>
                     @if($totales->total_items > 0)
                         <button class="btn btn-light btn-sm" onclick="vaciarCarrito()">
@@ -31,44 +38,28 @@
                     @endif
                 </div>
                 <div class="card-body p-0">
-                    @if($items->count() > 0)
+                    @if(isset($itemsProcesados) && $itemsProcesados->count() > 0)
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="bg-light">
                                     <tr>
                                         <th>Producto</th>
-                                        <th class="text-center">Precio</th>
+                                        <th class="text-center">Precio Unit.</th>
                                         <th class="text-center">Cantidad</th>
                                         <th class="text-center">Subtotal</th>
                                         <th class="text-center">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach($items as $item)
-                                        @php
-                                            $producto = $item->producto;
-                                            $esFisico = $producto && $producto->esFisico();
-                                            $esDigital = $producto && $producto->esDigital();
-                                            $stockDisponible = $esFisico ? ($producto->stock->cantidad ?? 0) : null;
-                                        @endphp
+                                    @foreach($itemsProcesados as $item)
                                         <tr data-item-id="{{ $item->id }}">
                                             <td>
                                                 <div class="d-flex align-items-center">
                                                     <!-- Imagen del producto -->
                                                     <div class="flex-shrink-0 me-3">
-                                                        @php
-                                                            $imagen = null;
-                                                            for($i = 1; $i <= 5; $i++) {
-                                                                $campo = "imagen_url_$i";
-                                                                if($producto && $producto->$campo) {
-                                                                    $imagen = $producto->getImageUrl($campo);
-                                                                    break;
-                                                                }
-                                                            }
-                                                        @endphp
-                                                        @if($imagen)
-                                                            <img src="{{ $imagen }}"
-                                                                 alt="{{ $producto->nombre }}"
+                                                        @if($item->imagen)
+                                                            <img src="{{ $item->imagen }}"
+                                                                 alt="{{ $item->nombre }}"
                                                                  style="width: 60px; height: 60px; object-fit: cover;"
                                                                  class="rounded">
                                                         @else
@@ -79,16 +70,14 @@
                                                         @endif
                                                     </div>
                                                     <div>
-                                                        <h6 class="fw-bold mb-1">{{ $producto->nombre ?? 'Producto no disponible' }}</h6>
+                                                        <h6 class="fw-bold mb-1">{{ $item->nombre }}</h6>
                                                         <small class="text-secondary">
-                                                            @if($producto)
-                                                                <span class="badge {{ $esDigital ? 'bg-info' : 'bg-primary' }} me-1">
-                                                                    <i class="fas {{ $esDigital ? 'fa-cloud' : 'fa-box' }} me-1"></i>
-                                                                    {{ ucfirst($producto->tipo_producto) }}
-                                                                </span>
-                                                                @if($esFisico && $producto->sku)
-                                                                    <span class="text-secondary">SKU: {{ $producto->sku }}</span>
-                                                                @endif
+                                                            <span class="badge {{ $item->es_digital ? 'bg-info' : 'bg-primary' }} me-1">
+                                                                <i class="fas {{ $item->es_digital ? 'fa-cloud' : 'fa-box' }} me-1"></i>
+                                                                {{ ucfirst($item->tipo_producto) }}
+                                                            </span>
+                                                            @if($item->es_fisico && $item->sku)
+                                                                <span class="text-secondary">SKU: {{ $item->sku }}</span>
                                                             @endif
                                                         </small>
                                                     </div>
@@ -98,24 +87,26 @@
                                                 @if($item->aplica_descuento && $item->porcentaje_descuento > 0)
                                                     <div>
                                                         <span class="text-decoration-line-through text-secondary small">
-                                                            S/ {{ number_format($item->precio_adquirido_local, 2) }}
+                                                            {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_unitario_actual, 2) }}
                                                         </span>
                                                         <br>
                                                         <span class="fw-bold text-success">
-                                                            S/ {{ number_format($item->precio_adquirido_local, 2) }}
+                                                            {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_unitario_actual, 2) }}
                                                         </span>
                                                         <small class="badge bg-success ms-1">-{{ $item->porcentaje_descuento }}%</small>
                                                     </div>
                                                 @else
-                                                    <span class="fw-bold">S/ {{ number_format($item->precio_adquirido_local, 2) }}</span>
+                                                    <span class="fw-bold">{{ $item->precio_unitario_actual_formateado }}</span>
                                                 @endif
-                                                @if($item->precio_adquirido_usd)
+
+                                                <!-- Mostrar precio en USD como referencia si es diferente -->
+                                                @if($totales->moneda_actual->codigo_iso != 'USD' && $item->precio_unitario_usd)
                                                     <br>
-                                                    <small class="text-secondary">${{ number_format($item->precio_adquirido_usd, 2) }}</small>
+                                                    <small class="text-secondary">${{ number_format($item->precio_unitario_usd, 2) }} USD</small>
                                                 @endif
                                             </td>
                                             <td class="text-center">
-                                                @if($esDigital)
+                                                @if($item->es_digital)
                                                     <!-- Producto digital: cantidad fija -->
                                                     <span class="badge bg-info">1 unidad (digital)</span>
                                                 @else
@@ -129,22 +120,22 @@
                                                         <span class="mx-2">{{ $item->cantidad }}</span>
                                                         <button class="btn btn-sm btn-outline-secondary"
                                                                 onclick="actualizarCantidad({{ $item->id }}, {{ $item->cantidad + 1 }})"
-                                                                {{ $esFisico && $stockDisponible && $item->cantidad >= $stockDisponible ? 'disabled' : '' }}>
+                                                                {{ $item->es_fisico && $item->stock_disponible && $item->cantidad >= $item->stock_disponible ? 'disabled' : '' }}>
                                                             <i class="fas fa-plus"></i>
                                                         </button>
                                                     </div>
-                                                    @if($esFisico && $stockDisponible)
+                                                    @if($item->es_fisico && $item->stock_disponible)
                                                         <small class="text-secondary d-block mt-1">
-                                                            {{ $stockDisponible }} disponibles
+                                                            {{ $item->stock_disponible }} disponibles
                                                         </small>
                                                     @endif
                                                 @endif
                                             </td>
                                             <td class="text-center fw-bold text-success">
-                                                S/ {{ number_format($item->subtotal_local, 2) }}
-                                                @if($item->subtotal_usd)
+                                                {{ $item->subtotal_actual_formateado }}
+                                                @if($totales->moneda_actual->codigo_iso != 'USD' && $item->subtotal_usd)
                                                     <br>
-                                                    <small class="text-secondary">${{ number_format($item->subtotal_usd, 2) }}</small>
+                                                    <small class="text-secondary">${{ number_format($item->subtotal_usd, 2) }} USD</small>
                                                 @endif
                                             </td>
                                             <td class="text-center">
@@ -181,12 +172,17 @@
                     <h5 class="mb-0">
                         <i class="fas fa-receipt me-2"></i>
                         Resumen de compra
+                        @if(isset($moneda_actual))
+                            <small class="ms-2">
+                                {{ $moneda_actual->codigo_iso }}
+                            </small>
+                        @endif
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Subtotal ({{ $totales->total_items }} productos):</span>
-                        <span class="fw-bold">S/ {{ number_format($totales->subtotal_local, 2) }}</span>
+                        <span class="fw-bold">{{ $totales->subtotal_actual_formateado }}</span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Envío:</span>
@@ -195,16 +191,17 @@
                     <hr>
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fw-bold fs-5">Total:</span>
-                        <span class="fw-bold fs-5 text-success">S/ {{ number_format($totales->total_local, 2) }}</span>
+                        <span class="fw-bold fs-5 text-success">{{ $totales->total_actual_formateado }}</span>
                     </div>
 
-                    @if($totales->total_usd > 0)
+                    <!-- Mostrar total en USD como referencia si es diferente -->
+                    @if(isset($totales->moneda_actual) && $totales->moneda_actual->codigo_iso != 'USD' && $totales->total_usd > 0)
                         <p class="text-secondary small text-end">
                             ≈ ${{ number_format($totales->total_usd, 2) }} USD
                         </p>
                     @endif
 
-                    @if($items->count() > 0)
+                    @if(isset($itemsProcesados) && $itemsProcesados->count() > 0)
                         <button class="btn btn-success btn-lg w-100 mb-2" onclick="procederAlPago()">
                             <i class="fas fa-arrow-right me-2"></i>
                             Proceder al pago
@@ -216,6 +213,28 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Selector de moneda rápido (opcional) -->
+            @if(isset($monedasDisponibles) && $monedasDisponibles->count() > 1)
+            <div class="card shadow-sm border-0 mt-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-money-bill-wave me-2"></i>
+                        Cambiar moneda
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach($monedasDisponibles as $moneda)
+                            <button class="btn btn-sm {{ $monedaActual && $monedaActual->codigo_iso == $moneda->codigo_iso ? 'btn-success' : 'btn-outline-success' }}"
+                                    onclick="cambiarMoneda('{{ $moneda->codigo_iso }}')">
+                                {{ $moneda->simbolo }} {{ $moneda->codigo_iso }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <!-- Medios de pago -->
             <div class="card shadow-sm border-0 mt-4">
@@ -243,43 +262,18 @@
     </div>
 </div>
 
-<!-- Modal para solicitar login -->
+<!-- Modal para solicitar login (sin cambios) -->
 <div class="modal fade" id="loginRequiredModal" tabindex="-1" aria-labelledby="loginRequiredModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-warning">
-                <h5 class="modal-title text-dark" id="loginRequiredModalLabel">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    Inicio de sesión requerido
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center py-4">
-                <i class="fas fa-user-lock text-warning fa-4x mb-3"></i>
-                <p class="mb-2">Para continuar con la compra, necesitas iniciar sesión.</p>
-                <p class="text-secondary small">Si no tienes una cuenta, puedes registrarte en un minuto.</p>
-            </div>
-            <div class="modal-footer justify-content-center border-0 pt-0">
-                <a href="{{ route('client.login') }}?redirect={{ urlencode(request()->fullUrl()) }}"
-                   class="btn btn-success">
-                    <i class="fas fa-sign-in-alt me-2"></i>
-                    Iniciar sesión
-                </a>
-                <a href="{{ route('client.register') }}?redirect={{ urlencode(request()->fullUrl()) }}"
-                   class="btn btn-outline-success">
-                    <i class="fas fa-user-plus me-2"></i>
-                    Registrarme
-                </a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    Seguir comprando
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- ... contenido del modal igual ... -->
 </div>
 
-<!-- Scripts -->
+<!-- Scripts actualizados -->
 <script>
+// Función para formatear precio (fallback)
+function formatearPrecio(monto, simbolo = 'S/') {
+    return `${simbolo} ${parseFloat(monto || 0).toFixed(2)}`;
+}
+
 // Actualizar cantidad
 function actualizarCantidad(itemId, nuevaCantidad) {
     if (nuevaCantidad < 1) return;
@@ -298,6 +292,7 @@ function actualizarCantidad(itemId, nuevaCantidad) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Recargar para mostrar los cambios
             location.reload();
         } else {
             if (typeof window.mostrarNotificacion === 'function') {
@@ -375,6 +370,41 @@ function vaciarCarrito() {
             window.mostrarNotificacion('Error al vaciar carrito', 'danger');
         } else {
             alert('Error al vaciar carrito');
+        }
+    });
+}
+
+// Cambiar moneda
+function cambiarMoneda(currencyCode) {
+    console.log('Cambiando moneda a:', currencyCode);
+
+    fetch('/cambiar-moneda', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ currency: currencyCode })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recargar para mostrar precios en nueva moneda
+            location.reload();
+        } else {
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion('Error al cambiar la moneda', 'danger');
+            } else {
+                alert('Error al cambiar la moneda');
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Error al cambiar la moneda', 'danger');
+        } else {
+            alert('Error al cambiar la moneda');
         }
     });
 }

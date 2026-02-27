@@ -10,6 +10,14 @@ function getCsrfToken() {
     return meta.content;
 }
 
+// Función para formatear precio según la moneda
+function formatearPrecio(monto, moneda) {
+    if (!moneda) {
+        return `$${parseFloat(monto || 0).toFixed(2)}`;
+    }
+    return `${moneda.simbolo}${parseFloat(monto || 0).toFixed(2)}`;
+}
+
 // Función para actualizar el contenido del carrito en la sidebar
 window.actualizarSidebarCarrito = function() {
     const cartItems = document.getElementById('cartItems');
@@ -36,11 +44,23 @@ window.actualizarSidebarCarrito = function() {
             const cartItemsCount = document.getElementById('cartItemsCount');
             const checkoutBtn = document.getElementById('checkoutBtn');
 
-            // Actualizar contadores y totales
+            // Obtener información de la moneda actual
+            const monedaActual = data.totales.moneda_actual || { simbolo: '$', codigo: 'USD' };
+
+            // Actualizar contadores y totales con la moneda actual
             if (cartCount) cartCount.textContent = data.totales.total_items;
             if (cartItemsCount) cartItemsCount.textContent = data.totales.total_items;
-            if (cartSubtotal) cartSubtotal.textContent = `$${parseFloat(data.totales.subtotal_usd || 0).toFixed(2)}`;
-            if (cartTotal) cartTotal.textContent = `$${parseFloat(data.totales.total_usd || 0).toFixed(2)}`;
+
+            // Usar los totales formateados que vienen del backend
+            if (cartSubtotal) {
+                cartSubtotal.textContent = data.totales.subtotal_actual_formateado ||
+                    formatearPrecio(data.totales.subtotal_actual, monedaActual);
+            }
+
+            if (cartTotal) {
+                cartTotal.textContent = data.totales.total_actual_formateado ||
+                    formatearPrecio(data.totales.total_actual, monedaActual);
+            }
 
             // Actualizar botón de checkout
             if (checkoutBtn) {
@@ -80,7 +100,6 @@ window.actualizarSidebarCarrito = function() {
                                             <h6 class="mb-1 small fw-bold" style="font-size: 0.8rem;">
                                                 ${item.nombre.substring(0, 30)}${item.nombre.length > 30 ? '...' : ''}
                                             </h6>
-
                                         </div>
                                         <button class="btn btn-link text-danger p-0 ms-1"
                                                 onclick="eliminarItemCarrito(${item.id})"
@@ -115,7 +134,8 @@ window.actualizarSidebarCarrito = function() {
                                             </div>
                                         `}
                                         <span class="small fw-bold text-success">
-                                            $${parseFloat(item.subtotal_usd || 0).toFixed(2)}
+                                            ${item.precio_unitario_actual_formateado ||
+                                                formatearPrecio(item.precio_unitario_actual, monedaActual)}
                                         </span>
                                     </div>
 
@@ -257,9 +277,45 @@ window.mostrarNotificacion = function(mensaje, tipo = 'success') {
     }, 3000);
 };
 
+// Función para cambiar moneda
+window.cambiarMoneda = function(currencyCode) {
+    console.log('Cambiando moneda a:', currencyCode);
+
+    fetch('/cambiar-moneda', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken()
+        },
+        body: JSON.stringify({ currency: currencyCode })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Respuesta:', data);
+        if (data.success) {
+            // Actualizar el sidebar del carrito
+            if (typeof window.actualizarSidebarCarrito === 'function') {
+                window.actualizarSidebarCarrito();
+            }
+
+            // Mostrar notificación
+            mostrarNotificacion(`Moneda cambiada a ${currencyCode}`, 'success');
+        } else {
+            mostrarNotificacion('Error al cambiar la moneda', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarNotificacion('Error al cambiar la moneda', 'danger');
+    });
+};
+
 // Inicializar carrito al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof window.actualizarSidebarCarrito === 'function') {
-        window.actualizarSidebarCarrito();
+        // Pequeño retraso para asegurar que todo esté cargado
+        setTimeout(() => {
+            window.actualizarSidebarCarrito();
+        }, 100);
     }
 });
