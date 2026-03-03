@@ -149,6 +149,54 @@
                 </div>
             </div>
 
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tag me-2"></i>
+                        ¿Tienes un cupón de descuento?
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-md-8">
+                            <input type="text" class="form-control" id="cuponInput"
+                                placeholder="Ingresa tu código de cupón"
+                                value="{{ $totales->cupon_aplicado['codigo'] ?? '' }}"
+                                {{ isset($totales->cupon_aplicado) ? 'disabled' : '' }}>
+                        </div>
+                        <div class="col-md-4">
+                            @if(isset($totales->cupon_aplicado))
+                                <button class="btn btn-outline-danger w-100" onclick="quitarCupon()" id="quitarCuponBtn">
+                                    <i class="fas fa-times me-2"></i>
+                                    Quitar cupón
+                                </button>
+                            @else
+                                <button class="btn btn-success w-100" onclick="aplicarCupon()" id="aplicarCuponBtn">
+                                    <i class="fas fa-check me-2"></i>
+                                    Aplicar
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+
+                    <!-- Mensaje de cupón aplicado -->
+                    @if(isset($totales->cupon_aplicado))
+                        <div class="alert alert-success mt-3 mb-0" id="cuponMensaje">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <div>
+                                    <strong>Cupón "{{ $totales->cupon_aplicado['codigo'] }}" aplicado!</strong><br>
+                                    <small>Descuento: {{ $totales->descuento_aplicado_formateado }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="alert alert-info mt-3 mb-0" id="cuponInfo" style="display: none;"></div>
+                        <div class="alert alert-danger mt-3 mb-0" id="cuponError" style="display: none;"></div>
+                    @endif
+                </div>
+            </div>
+
             <!-- Selector de moneda rápido (opcional) -->
             @if(isset($monedasDisponibles) && $monedasDisponibles->count() > 1)
             <div class="card shadow-sm border-0 mb-4">
@@ -318,6 +366,15 @@
                         <span class="text-secondary">Subtotal ({{ $totales->total_items }} productos):</span>
                         <span class="fw-bold">{{ $totales->subtotal_actual_formateado }}</span>
                     </div>
+
+                    <!-- Descuento por cupón (si aplica) -->
+                    @if(isset($totales->cupon_aplicado))
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span class="text-secondary">Descuento cupón "{{ $totales->cupon_aplicado['codigo'] }}":</span>
+                            <span class="fw-bold">-{{ $totales->descuento_aplicado_formateado }}</span>
+                        </div>
+                    @endif
+
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Envío:</span>
                         <span class="text-success">Por calcular</span>
@@ -451,11 +508,10 @@
 }
 </style>
 
-<!-- Scripts -->
-<!-- Scripts actualizados -->
 <script>
 let metodoPagoSeleccionado = null;
 let selectedElement = null;
+let cuponValido = true;
 
 // Función para cambiar moneda (usa la función global de carrito.js)
 function cambiarMoneda(currencyCode) {
@@ -507,9 +563,243 @@ function selectPaymentMethod(metodo, element) {
 }
 
 function enviarSolicitudPago() {
-    // ... (misma función que antes, sin cambios) ...
+    if (!cuponValido) {
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('El cupón aplicado no es válido para esta moneda. Por favor, cambia de moneda o quita el cupón.', 'warning');
+        } else {
+            alert('El cupón aplicado no es válido para esta moneda. Por favor, cambia de moneda o quita el cupón.');
+        }
+        return;
+    }
+    // Validar que se haya seleccionado un método de pago
+    if (!metodoPagoSeleccionado) {
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Por favor selecciona un método de pago', 'warning');
+        } else {
+            alert('Por favor selecciona un método de pago');
+        }
+        return;
+    }
+
+    // Validar términos y condiciones
+    const terminos = document.getElementById('terminos');
+    if (!terminos || !terminos.checked) {
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Debes aceptar los términos y condiciones', 'warning');
+        } else {
+            alert('Debes aceptar los términos y condiciones');
+        }
+        return;
+    }
+
+    // Validar archivo según método de pago
+    if (metodoPagoSeleccionado === 'yape' || metodoPagoSeleccionado === 'plin') {
+        const fileInput = document.getElementById(metodoPagoSeleccionado + 'File');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion('Por favor adjunta el comprobante de ' + metodoPagoSeleccionado, 'warning');
+            } else {
+                alert('Por favor adjunta el comprobante de ' + metodoPagoSeleccionado);
+            }
+            return;
+        }
+
+        // Validar tamaño del archivo (máx 5MB)
+        if (fileInput.files[0].size > 5 * 1024 * 1024) {
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion('El archivo no debe superar los 5MB', 'warning');
+            } else {
+                alert('El archivo no debe superar los 5MB');
+            }
+            return;
+        }
+    }
+
+    // Deshabilitar botón y mostrar loading
+    const btn = document.getElementById('submitBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader me-2"></span>Procesando...';
+
+    // Crear FormData para enviar archivos
+    const formData = new FormData(document.getElementById('paymentForm'));
+    formData.append('metodo_pago', metodoPagoSeleccionado);
+
+    // Agregar el cupón aplicado (si existe)
+    @if(isset($totales->cupon_aplicado))
+        formData.append('cupon_aplicado', '{{ $totales->cupon_aplicado['codigo'] ?? '' }}');
+        formData.append('descuento_aplicado', {{ $totales->descuento_aplicado ?? 0 }});
+    @endif
+
+    fetch('{{ route("checkout.procesar") }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Mostrar modal de confirmación
+            const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+            const modalMessage = document.getElementById('modalMessage');
+            if (modalMessage) {
+                modalMessage.textContent = data.message;
+            }
+
+            modal.show();
+            btn.disabled = true;
+        } else {
+            // Restaurar botón
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+
+            // Mostrar mensaje de error específico
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion(data.message || 'Error al procesar la solicitud', 'danger');
+            } else {
+                alert(data.message || 'Error al procesar la solicitud');
+            }
+
+            // Si el error requiere acción específica del usuario
+            if (data.requires_action === 'remove_coupon_or_change_currency') {
+                // RESALTAR LA SECCIÓN DEL CUPÓN
+                const cuponSection = document.querySelector('.card:has(#cuponInput)');
+                if (cuponSection) {
+                    // Agregar efecto de resaltado
+                    cuponSection.classList.add('border', 'border-danger', 'shadow-lg');
+
+                    // Scroll suave hacia la sección
+                    cuponSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // Resaltar también el selector de moneda si existe
+                    const monedaSection = document.querySelector('.card:has(.gap-2 .btn-outline-success)');
+                    if (monedaSection) {
+                        monedaSection.classList.add('border', 'border-warning', 'shadow-sm');
+                    }
+
+                    // Quitar el resaltado después de 5 segundos
+                    setTimeout(() => {
+                        cuponSection.classList.remove('border-danger', 'shadow-lg');
+                        if (monedaSection) {
+                            monedaSection.classList.remove('border-warning', 'shadow-sm');
+                        }
+                    }, 5000);
+                }
+
+                // Mostrar un mensaje más específico
+                if (typeof window.mostrarNotificacion === 'function') {
+                    window.mostrarNotificacion('ACCION REQUERIDA: El cupón no es válido para esta moneda. Por favor, cambia de moneda o quita el cupón.', 'warning', 8000);
+                }
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Error al procesar la solicitud', 'danger');
+        } else {
+            alert('Error al procesar la solicitud');
+        }
+    });
 }
 
+function aplicarCupon() {
+    const codigo = document.getElementById('cuponInput').value.trim();
+
+    if (!codigo) {
+        mostrarMensajeCupon('Por favor ingresa un código de cupón', 'error');
+        return;
+    }
+
+    // Deshabilitar botón y mostrar loading
+    const btn = document.getElementById('aplicarCuponBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader me-2"></span>Aplicando...';
+
+    fetch('{{ route("checkout.validar-cupon") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ codigo: codigo })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recargar la página para mostrar los cambios
+            location.reload();
+        } else {
+            mostrarMensajeCupon(data.message || 'Cupón no válido', 'error');
+            // Restaurar botón
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarMensajeCupon('Error al aplicar el cupón', 'error');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+function quitarCupon() {
+    if (!confirm('¿Quitar el cupón aplicado?')) return;
+
+    const btn = document.getElementById('quitarCuponBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader me-2"></span>Quitando...';
+
+    fetch('{{ route("checkout.quitar-cupon") }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error al quitar el cupón');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al quitar el cupón');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+}
+
+function mostrarMensajeCupon(mensaje, tipo) {
+    const infoDiv = document.getElementById('cuponInfo');
+    const errorDiv = document.getElementById('cuponError');
+
+    if (tipo === 'error') {
+        errorDiv.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>${mensaje}`;
+        errorDiv.style.display = 'block';
+        infoDiv.style.display = 'none';
+    } else {
+        infoDiv.innerHTML = `<i class="fas fa-info-circle me-2"></i>${mensaje}`;
+        infoDiv.style.display = 'block';
+        errorDiv.style.display = 'none';
+    }
+}
 // Inicializar
 document.addEventListener('DOMContentLoaded', function() {
     // Verificar si hay método de pago seleccionado por defecto

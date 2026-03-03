@@ -10,11 +10,11 @@ class SolicitudPago extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'solicitudes_pago';
+    protected $table = 'solicitud_pagos';
     protected $fillable = [
         'cliente_id',
         'carrito_id',
-        'boleta_id',
+        'pedido_id',
         'admin_id',
         'staff_id',
         'monto',
@@ -22,7 +22,6 @@ class SolicitudPago extends Model
         'imagen_1',
         'imagen_2',
         'imagen_3',
-        'estado'
     ];
 
     protected $casts = [
@@ -42,9 +41,9 @@ class SolicitudPago extends Model
     {
         return $this->belongsTo(Carrito::class, 'carrito_id');
     }
-    public function boleta()
+    public function pedido()
     {
-        return $this->belongsTo(Boleta::class, 'boleta_id');
+        return $this->belongsTo(Pedido::class, 'pedido_id');
     }
     public function admin()
     {

@@ -10,7 +10,7 @@ class SolicitudPagoEstado extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'solicitudes_pago_estados';
+    protected $table = 'solicitud_pagos_estados';
     protected $fillable = [
         'solicitud_pago_id',
         'estado',

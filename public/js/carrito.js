@@ -201,7 +201,8 @@ window.actualizarCantidad = function(itemId, nuevaCantidad) {
         return;
     }
 
-    fetch(`/carrito/actualizar/${itemId}`, {
+    // Nota: itemId ahora es el ID del CarritoProducto, no del producto
+    fetch(`/carrito/actualizar-item/${itemId}`, {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': token,

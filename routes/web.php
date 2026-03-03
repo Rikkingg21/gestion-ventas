@@ -21,12 +21,15 @@ Route::post('/cambiar-moneda', function (Request $request) {
 // Rutas del carrito - TODAS USANDO POST para simplificar (o todas usando el método HTTP apropiado)
 Route::get('/carrito/ver', [ProductosController::class, 'verCarrito'])->name('carrito.ver');
 Route::post('/carrito/agregar/{producto}', [ProductosController::class, 'agregarAlCarrito'])->name('carrito.agregar');
-Route::post('/carrito/actualizar/{productoId}', [ProductosController::class, 'actualizarCantidad'])->name('carrito.actualizar');
+Route::post('/carrito/actualizar-item/{item}', [ProductosController::class, 'actualizarCantidad'])->name('carrito.actualizar-item');
 Route::delete('/carrito/eliminar/{productoId}', [ProductosController::class, 'eliminarDelCarrito'])->name('carrito.eliminar');
 Route::post('/carrito/vaciar', [ProductosController::class, 'vaciarCarrito'])->name('carrito.vaciar');
 
 Route::get('/checkout', [App\Http\Controllers\Client\PayController::class, 'index'])->name('checkout.index')->middleware('auth:client');
 Route::post('/checkout', [App\Http\Controllers\Client\PayController::class, 'store'])->name('checkout.store')->middleware('client.auth');
+Route::post('/checkout/validar-cupon', [App\Http\Controllers\Client\PayController::class, 'validarCupon'])->name('checkout.validar-cupon');
+Route::post('/checkout/quitar-cupon', [App\Http\Controllers\Client\PayController::class, 'quitarCupon'])->name('checkout.quitar-cupon');
+Route::post('/checkout/procesar', [App\Http\Controllers\Client\PayController::class, 'procesarPago'])->name('checkout.procesar');
 
 Route::get('/mis-compras', [ComprasController::class, 'index'])->name('compras.index')->middleware('auth:client');
 Route::get('/nosotros', [ProductosController::class, 'funcion'])->name('nosotros');
