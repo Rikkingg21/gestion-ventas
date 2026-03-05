@@ -484,7 +484,7 @@ class PayController extends Controller
             // Obtener carrito activo con productos
             $carrito = Carrito::activo()
                 ->with(['productos' => function($query) {
-                    $query->with(['producto.stock']); // Cargar el stock de cada producto
+                    $query->with(['producto.stock']);
                 }])
                 ->where('cliente_id', $clienteId)
                 ->first();
@@ -501,7 +501,6 @@ class PayController extends Controller
             foreach ($carrito->productos as $item) {
                 $producto = $item->producto;
 
-                // Solo validar stock para productos físicos
                 if ($producto->esFisico()) {
                     $stockDisponible = $producto->stock->cantidad ?? 0;
 
@@ -511,7 +510,6 @@ class PayController extends Controller
                 }
             }
 
-            // Si hay errores de stock, detener el proceso
             if (!empty($erroresStock)) {
                 return response()->json([
                     'success' => false,
@@ -527,10 +525,12 @@ class PayController extends Controller
 
             $descuentoVerificado = 0;
             $cuponAplicado = null;
+            $cuponId = null;
 
             // Verificar cupón si existe en sesión
             if (session()->has('cupon_aplicado')) {
                 $cuponAplicado = session('cupon_aplicado');
+                $cuponId = $cuponAplicado['id'];
 
                 // VALIDACIÓN: Comparar monedas
                 if (isset($cuponAplicado['moneda_id']) && !is_null($cuponAplicado['moneda_id'])) {
@@ -559,9 +559,15 @@ class PayController extends Controller
             $solicitudData = [
                 'cliente_id' => $clienteId,
                 'carrito_id' => $carrito->id,
+                'moneda_id' => $monedaActual->id,
                 'monto' => $totalFinal,
                 'metodo_pago' => $request->metodo_pago
             ];
+
+            // Agregar cupon_id solo si existe
+            if ($cuponId) {
+                $solicitudData['cupon_id'] = $cuponId;
+            }
 
             // Procesar y guardar imagen del comprobante
             if ($request->metodo_pago == 'yape' && $request->hasFile('comprobante_yape')) {
@@ -589,13 +595,13 @@ class PayController extends Controller
                 $producto = $item->producto;
 
                 if ($producto->esFisico() && $producto->stock) {
-                    // Reducir el stock
                     $producto->stock->reducirStock($item->cantidad);
 
                     Log::info('Stock actualizado', [
                         'producto' => $producto->nombre,
                         'cantidad_comprada' => $item->cantidad,
-                        'stock_restante' => $producto->stock->cantidad
+                        'stock_restante' => $producto->stock->cantidad,
+                        'solicitud_id' => $solicitud->id
                     ]);
                 }
             }
@@ -619,6 +625,12 @@ class PayController extends Controller
                 if ($cupon) {
                     $cupon->stok_actual -= 1;
                     $cupon->save();
+
+                    Log::info('Stock de cupón actualizado', [
+                        'cupon' => $cupon->codigo,
+                        'stock_restante' => $cupon->stok_actual,
+                        'solicitud_id' => $solicitud->id
+                    ]);
                 }
 
                 // Limpiar cupón de sesión
@@ -642,9 +654,11 @@ class PayController extends Controller
                 'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
+            // CORREGIDO: No usar $request->all() cuando hay archivos
             Log::error('Error en procesarPago: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'solicitud_id' => $solicitud->id ?? null,
+                'metodo_pago' => $request->metodo_pago ?? null
             ]);
 
             return response()->json([

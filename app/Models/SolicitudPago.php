@@ -17,6 +17,8 @@ class SolicitudPago extends Model
         'pedido_id',
         'admin_id',
         'staff_id',
+        'moneda_id',
+        'cupon_id',
         'monto',
         'metodo_pago',
         'imagen_1',
@@ -52,5 +54,17 @@ class SolicitudPago extends Model
     public function staff()
     {
         return $this->belongsTo(Staff::class, 'staff_id');
+    }
+    public function moneda()
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+    public function cupon()
+    {
+        return $this->belongsTo(Cupon::class, 'cupon_id');
+    }
+    public function estados()
+    {
+        return $this->hasMany(SolicitudPagoEstado::class, 'solicitud_pago_id');
     }
 }

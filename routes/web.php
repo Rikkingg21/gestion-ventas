@@ -51,6 +51,9 @@ Route::prefix('/')->name('client.')->group(function () {
         Route::get('/home', [App\Http\Controllers\Client\HomeController::class, 'home'])->name('home');
         Route::post('/logout', [App\Http\Controllers\Client\Auth\LoginController::class, 'logout'])->name('logout');
 
+        Route::get('/mis-compras', [App\Http\Controllers\Client\ComprasController::class, 'index'])->name('compras.index')->middleware('auth:client');
+        Route::get('/mis-compras/{id}', [App\Http\Controllers\Client\ComprasController::class, 'show'])->name('compras.show')->middleware('auth:client');
+
         // Perfil del cliente
         Route::get('/perfil', [App\Http\Controllers\Client\ProfileController::class, 'edit'])->name('profile.edit');
         Route::put('/perfil', [App\Http\Controllers\Client\ProfileController::class, 'update'])->name('profile.update');
@@ -154,6 +157,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::put('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'update'])->name('productos.update')->middleware('admin:actualizar,productos');
             Route::delete('/productos/{producto}', [App\Http\Controllers\Admin\ProductosController::class, 'destroy'])->name('productos.destroy')->middleware('admin:eliminar,productos');
             Route::post('/productos/{producto}/eliminar-imagen', [App\Http\Controllers\Admin\ProductosController::class, 'eliminarImagen'])->name('productos.eliminar-imagen')->middleware('admin:actualizar,productos');
+        });
+
+        // Gestión de solicitud de pedidos - requiere permiso de lectura
+        Route::middleware('admin:leer,solicitudes-pedidos')->group(function () {
+            Route::get('/solicitudes-pedidos', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'index'])->name('solicitudes-pedidos.index');
+            Route::get('/solicitudes-pedidos/{id}', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'show'])->name('solicitudes-pedidos.show')->middleware('admin:leer,solicitudes-pedidos');
+            Route::post('/solicitudes-pedidos/{id}/estado', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'updateEstado'])->name('solicitudes-pedidos.update-estado')->middleware('admin:actualizar,solicitudes-pedidos');
+            Route::get('/solicitudes-pedidos/{id}/comprobante', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'verComprobante'])->name('solicitudes-pedidos.comprobante')->middleware('admin:leer,solicitudes-pedidos');
         });
 
         // Gestión de personal

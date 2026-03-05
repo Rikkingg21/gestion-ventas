@@ -460,7 +460,7 @@
                     <i class="fas fa-store me-2"></i>
                     Seguir comprando
                 </a>
-                <a href="{{ route('compras.index') }}" class="btn btn-outline-success" id="verComprasBtn">
+                <a href="{{ route('client.compras.index') }}" class="btn btn-outline-success" id="verComprasBtn">
                     <i class="fas fa-box me-2"></i>
                     Ver mis compras
                 </a>
