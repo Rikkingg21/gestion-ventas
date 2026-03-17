@@ -14,6 +14,7 @@ class Moneda extends Model
 
     protected $fillable = [
         'pais',
+        'pais_code',
         'nombre',
         'codigo_iso',
         'simbolo',

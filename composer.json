@@ -24,7 +24,12 @@
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "files": [
+            "app/Helpers/GeoLocation.php",
+            "app/Helpers/MonedaHelper.php",
+            "app/Helpers/ImagenesHelper.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

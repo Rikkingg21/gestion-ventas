@@ -3,171 +3,100 @@
 namespace App\View\Composers;
 
 use App\Models\Module;
-use App\Models\Moneda;
 use App\Helpers\GeoLocation;
+use App\Helpers\MonedaHelper;
 use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 
 class ClienteMenuComposer
 {
     public function compose(View $view)
     {
         try {
-            // Verificar autenticación con guard client
             $user = Auth::guard('client')->user();
             $isAuthenticated = Auth::guard('client')->check();
         } catch (\Exception $e) {
             $user = null;
             $isAuthenticated = false;
-            Log::warning('Error al verificar autenticación: ' . $e->getMessage());
         }
 
-        // GEO LOCALIZACIÓN - DETECCIÓN DE PAÍS Y MONEDA
+        // PASO 1: DETECTAR PAÍS POR IP
+        $countryCode = null;
+        $countryName = null;
+
         try {
-            // Intentar obtener de caché primero
-            $geoInfo = Cache::remember('geo_' . request()->ip(), now()->addHours(6), function () {
-                return GeoLocation::getCountryInfo();
-            });
+            $countryCode = GeoLocation::getCountryCode();
+            $countryName = GeoLocation::getCountry();
+        } catch (\Exception $e) {}
 
-            // Obtener moneda de la base de datos basada en el código detectado
-            $monedaDetectada = Moneda::where('codigo_iso', $geoInfo['currency']['code'])
-                ->where('is_active', true)
-                ->first();
+        // PASO 2: OBTENER MONEDA ACTUAL (del helper)
+        $monedaActual = MonedaHelper::getMonedaActual();
+        $monedaInfo = MonedaHelper::formatMonedaForView($monedaActual);
 
-            // Si hay moneda preferida en sesión (seleccionada por el usuario), usarla
-            if (session()->has('moneda_seleccionada')) {
-                $monedaUsuario = Moneda::where('codigo_iso', session('moneda_seleccionada'))
-                    ->where('is_active', true)
-                    ->first();
+        // PASO 3: OBTENER MONEDAS DISPONIBLES PARA EL SELECTOR
+        $monedasDisponibles = $this->getMonedasDisponibles($user, $countryCode);
 
-                if ($monedaUsuario) {
-                    $geoInfo['currency'] = [
-                        'code' => $monedaUsuario->codigo_iso,
-                        'symbol' => $monedaUsuario->simbolo,
-                        'name' => $monedaUsuario->nombre,
-                        'id' => $monedaUsuario->id
-                    ];
-                    $geoInfo['moneda_seleccionada'] = true;
-                }
-            }
-            // Si no hay moneda seleccionada pero tenemos moneda detectada en BD
-            elseif ($monedaDetectada) {
-                $geoInfo['currency'] = [
-                    'code' => $monedaDetectada->codigo_iso,
-                    'symbol' => $monedaDetectada->simbolo,
-                    'name' => $monedaDetectada->nombre,
-                    'id' => $monedaDetectada->id
-                ];
-                $geoInfo['moneda_detectada'] = true;
-            }
+        // PASO 4: CONSTRUIR userGeoInfo
+        $userGeoInfo = [
+            'country' => [
+                'code' => $countryCode,
+                'name' => $countryName,
+            ],
+            'currency' => $monedaInfo,
+        ];
 
-            // Obtener todas las monedas activas para el selector
-            $monedasDisponibles = Moneda::where('is_active', true)
-                ->orderBy('codigo_iso')
-                ->get();
+        // Módulos públicos
+        $publicModules = $this->getPublicModules();
 
-        } catch (\Exception $e) {
-            Log::error('Error en geolocalización: ' . $e->getMessage());
-            $geoInfo = GeoLocation::getDefaultCountry();
-            $monedasDisponibles = collect([]);
-        }
-
-        // Si el usuario NO está autenticado, mostrar solo módulos públicos
-        if (!$isAuthenticated || !$user) {
-            $publicModules = $this->getPublicModules();
-
-            return $view->with([
-                'menuModules' => collect([]),
-                'publicModules' => $publicModules,
-                'isAuthenticated' => false,
-                'currentUser' => null,
-                // Datos de geolocalización
-                'userGeoInfo' => $geoInfo,
-                'monedasDisponibles' => $monedasDisponibles
-            ]);
-        }
-
-        // Usuario autenticado - verificar si tiene relación con client
-        try {
-            $cliente = $user->client;
-
-            if (!$cliente) {
-                Log::info('Usuario autenticado pero no es cliente: ' . $user->id);
-
-                return $view->with([
-                    'menuModules' => collect([]),
-                    'publicModules' => $this->getPublicModules(),
-                    'isAuthenticated' => true,
-                    'currentUser' => $user,
-                    // Datos de geolocalización
-                    'userGeoInfo' => $geoInfo,
-                    'monedasDisponibles' => $monedasDisponibles
-                ]);
-            }
-
-            // Verificar si el cliente está activo
-            if (!$cliente->is_active) {
-                Log::info('Cliente inactivo: ' . $user->id);
-
-                return $view->with([
-                    'menuModules' => collect([]),
-                    'publicModules' => $this->getPublicModules(),
-                    'isAuthenticated' => true,
-                    'currentUser' => $user,
-                    // Datos de geolocalización
-                    'userGeoInfo' => $geoInfo,
-                    'monedasDisponibles' => $monedasDisponibles
-                ]);
-            }
-
-            // Si el cliente tiene moneda preferida en su perfil, usarla
-            if ($cliente->moneda_preferida && !session()->has('moneda_seleccionada')) {
-                $monedaPreferida = Moneda::find($cliente->moneda_preferida);
-                if ($monedaPreferida) {
-                    $geoInfo['currency'] = [
-                        'code' => $monedaPreferida->codigo_iso,
-                        'symbol' => $monedaPreferida->simbolo,
-                        'name' => $monedaPreferida->nombre,
-                        'id' => $monedaPreferida->id
-                    ];
-                    $geoInfo['moneda_preferida'] = true;
-                }
-            }
-
-            // Obtener módulos públicos
-            $publicModules = $this->getPublicModules();
-
-            return $view->with([
-                'menuModules' => collect([]),
-                'publicModules' => $publicModules,
-                'isAuthenticated' => true,
-                'currentUser' => $user,
-                // Datos de geolocalización
-                'userGeoInfo' => $geoInfo,
-                'monedasDisponibles' => $monedasDisponibles
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error al obtener datos del cliente: ' . $e->getMessage(), [
-                'user_id' => $user->id ?? null,
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $view->with([
-                'menuModules' => collect([]),
-                'publicModules' => $this->getPublicModules(),
-                'isAuthenticated' => true,
-                'currentUser' => $user,
-                // Datos de geolocalización
-                'userGeoInfo' => $geoInfo,
-                'monedasDisponibles' => $monedasDisponibles
-            ]);
-        }
+        return $view->with([
+            'menuModules' => collect([]),
+            'publicModules' => $publicModules,
+            'isAuthenticated' => $isAuthenticated,
+            'currentUser' => $user,
+            'userGeoInfo' => $userGeoInfo,
+            'monedasDisponibles' => $monedasDisponibles
+        ]);
     }
 
-    // Obtener módulos públicos
+    /**
+     * Obtener monedas disponibles para el selector
+     */
+    private function getMonedasDisponibles($user, $geoCountryCode)
+    {
+        $monedasIds = [];
+
+        // 1. Siempre incluir moneda por defecto (ID 1 - USD)
+        $monedasIds[] = 1;
+
+        // 2. Moneda por GeoLocation (si existe y no es la misma que la default)
+        if ($geoCountryCode) {
+            $monedaGeo = MonedaHelper::getMonedaByPais($geoCountryCode);
+            if ($monedaGeo && $monedaGeo->id != 1) {
+                $monedasIds[] = $monedaGeo->id;
+            }
+        }
+
+        // 3. Moneda del país del usuario (si está logueado, tiene país y no está ya incluida)
+        if ($user && !empty($user->pais)) {
+            $monedaUser = MonedaHelper::getMonedaByPais($user->pais);
+            if ($monedaUser && $monedaUser->id != 1 && !in_array($monedaUser->id, $monedasIds)) {
+                $monedasIds[] = $monedaUser->id;
+            }
+        }
+
+        // Obtener todas las monedas activas y filtrar por los IDs únicos
+        $todasMonedas = MonedaHelper::getMonedasActivas();
+
+        // Filtrar y ordenar: primero default (USD), luego las demás
+        return $todasMonedas->filter(function($moneda) use ($monedasIds) {
+            return in_array($moneda->id, $monedasIds);
+        })->sortBy(function($moneda) {
+            // USD (ID 1) primero
+            return $moneda->id == 1 ? 0 : 1;
+        })->values();
+    }
+
     private function getPublicModules()
     {
         try {

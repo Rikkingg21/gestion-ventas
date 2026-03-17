@@ -7,6 +7,9 @@ use App\Models\Producto;
 use App\Models\Carrito;
 use App\Models\Moneda;
 use App\Models\CarritoProducto;
+use App\Helpers\MonedaHelper;
+use App\Helpers\ImagenesHelper;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -16,101 +19,192 @@ use App\Helpers\GeoLocation;
 
 class ProductosController extends Controller
 {
-    public function index()
+public function index(Request $request)
     {
-        // Obtener categorías activas
-        $categorias = Categoria::where('is_active', true)
-            ->orderBy('nombre')
-            ->get();
+        try {
+            // Obtener categorías activas con conteo de productos
+            $categorias = Cache::remember('categorias_activas_conteo', now()->addHours(6), function () {
+                return Categoria::where('is_active', true)
+                    ->withCount('productos')
+                    ->orderBy('nombre')
+                    ->get();
+            });
 
+            // Obtener moneda actual (AHORA USA EL HELPER)
+            $monedaActual = MonedaHelper::getMonedaActual();
+
+            // Obtener todos los productos activos con relaciones
+            $productos = Producto::with(['categoria', 'precios.moneda', 'stock'])
+                ->where('is_active', true)
+                ->orderBy('nombre')
+                ->paginate(12);
+
+            // Procesar cada producto usando los helpers
+            $productosProcesados = $productos->getCollection()->map(function($producto) use ($monedaActual) {
+                return $this->procesarProductoParaVista($producto, $monedaActual);
+            });
+
+            $productos->setCollection($productosProcesados);
+
+            // Total de productos
+            $totalProductos = Cache::remember('total_productos_activos', now()->addHours(6), function () {
+                return Producto::where('is_active', true)->count();
+            });
+
+            return view('client.productos.index', compact(
+                'categorias',
+                'productos',
+                'totalProductos',
+                'monedaActual'
+            ));
+
+        } catch (\Exception $e) {
+            Log::error('Error en ProductosController@index: ' . $e->getMessage());
+
+            return view('client.productos.index', [
+                'categorias' => collect([]),
+                'productos' => collect([]),
+                'totalProductos' => 0,
+                'monedaActual' => MonedaHelper::getMonedaActual(),
+                'error' => 'Error al cargar los productos'
+            ]);
+        }
+    }
+
+    private function procesarProductoParaVista($producto, $monedaActual)
+    {
+        // ===== 1. PROCESAR IMÁGENES =====
+        $imagenes = ImagenesHelper::getImagenesProducto($producto);
+        $imagenesConMetadata = ImagenesHelper::getImagenesConMetadata($producto);
+        $imagenPrincipal = ImagenesHelper::getImagenPrincipal($producto);
+        $defaultImage = ImagenesHelper::getDefaultImage();
+
+        // ===== 2. PROCESAR PRECIOS CON EL HELPER =====
+        $precioInfo = MonedaHelper::getPrecioProductoEnMoneda($producto, $monedaActual->id ?? null);
+
+        // ===== 3. PROCESAR STOCK =====
+        $stockActual = $producto->getStockActualAttribute();
+        $claseStock = $this->getClaseStock($producto, $stockActual);
+        $iconoStock = $this->getIconoStock($producto, $stockActual);
+        $textoStock = $this->getTextoStock($producto, $stockActual);
+
+        // ===== 4. CONSTRUIR OBJETO FINAL =====
+        return (object)[
+            // Datos básicos
+            'id' => $producto->id,
+            'nombre' => $producto->nombre,
+            'descripcion' => $producto->descripcion,
+            'descripcion_corta' => Str::limit($producto->descripcion, 60),
+            'tipo_producto' => $producto->tipo_producto,
+            'categoria_id' => $producto->categoria_id,
+            'categoria_nombre' => $producto->categoria->nombre ?? 'Sin categoría',
+            'sku' => $producto->sku,
+            'url_recurso' => $producto->url_recurso,
+
+            // Descuentos
+            'aplica_descuento' => $producto->aplica_descuento,
+            'porcentaje_descuento' => $precioInfo['porcentaje_descuento'],
+            'tiene_descuento' => $precioInfo['tiene_descuento'],
+
+            // IMÁGENES
+            'imagenes' => $imagenes,
+            'imagenes_metadata' => $imagenesConMetadata,
+            'imagen_principal' => $imagenPrincipal,
+            'tiene_imagenes' => !empty($imagenes),
+            'cantidad_imagenes' => count($imagenes),
+            'default_image' => $defaultImage,
+
+            // STOCK
+            'stock_actual' => $stockActual,
+            'es_fisico' => $producto->esFisico(),
+            'es_digital' => $producto->esDigital(),
+            'tiene_stock' => $producto->esFisico() ? ($stockActual > 0) : true,
+            'clase_stock' => $claseStock,
+            'icono_stock' => $iconoStock,
+            'texto_stock' => $textoStock,
+
+            // PRECIOS (TODO DEL HELPER)
+            'moneda' => $precioInfo['moneda'],
+            'precio_original' => $precioInfo['precio_original'],
+            'precio_original_formateado' => $precioInfo['precio_original_formateado'],
+            'precio_con_descuento' => $precioInfo['precio_con_descuento'],
+            'precio_con_descuento_formateado' => $precioInfo['precio_con_descuento_formateado'],
+            'ahorro' => $precioInfo['ahorro'],
+            'ahorro_formateado' => $precioInfo['ahorro_formateado'],
+
+            // Badges y clases CSS
+            'badge_digital_class' => 'badge-digital',
+            'badge_descuento_class' => 'discount-badge',
+            'card_class' => 'product-card',
+            'btn_comprar_class' => 'btn-agregar-carrito',
+            'btn_ver_class' => 'btn-ver-producto'
+        ];
+    }
+    private function getClaseStock($producto, $stockActual)
+    {
+        if ($producto->esDigital()) {
+            return 'info';
+        }
+
+        if ($stockActual > 10) {
+            return 'success';
+        } elseif ($stockActual > 0) {
+            return 'warning';
+        }
+
+        return 'danger';
+    }
+    private function getIconoStock($producto, $stockActual)
+    {
+        if ($producto->esDigital()) {
+            return 'fa-infinity';
+        }
+
+        if ($stockActual > 0) {
+            return 'fa-check-circle';
+        }
+
+        return 'fa-times-circle';
+    }
+    private function getTextoStock($producto, $stockActual)
+    {
+        if ($producto->esDigital()) {
+            return 'Stock digital';
+        }
+
+        if ($stockActual > 10) {
+            return $stockActual . ' disponibles';
+        } elseif ($stockActual > 0) {
+            return '¡Últimos ' . $stockActual . '!';
+        }
+
+        return 'Agotado';
+    }
+
+    // Obtener la moneda actual (de sesión, usuario o por defecto)
+    private function getMonedaActual()
+    {
+        // Intentar obtener de sesión
+        if (session()->has('moneda_seleccionada')) {
+            $moneda = MonedaHelper::getMonedaByCodigo(session('moneda_seleccionada'));
+            if ($moneda) return $moneda;
+        }
+
+        // Si no, obtener moneda por defecto
+        return MonedaHelper::getMonedaDefault();
+    }
+
+    // Función privada para cargar y procesar productos
+    private function cargarProductos($monedaActual)
+    {
         // Obtener productos activos con todas sus relaciones
         $productos = Producto::active()
             ->with(['categoria', 'stock', 'precios.moneda'])
             ->orderBy('nombre')
-            ->get();
+            ->paginate(12); // Paginación de 12 productos
 
-        // Obtener el carrito actual
-        $carrito = $this->obtenerCarritoActual();
-        $totalItems = $carrito ? $carrito->total_items : 0;
-
-        // LÓGICA MEJORADA DE MONEDA - CON PRIORIDAD A SESIÓN
-        $monedaActual = null;
-        $codigoMonedaActual = 'USD'; // Default final siempre USD
-
-        // 1. PRIORIDAD MÁXIMA: Moneda seleccionada en sesión (desde el layout)
-        if (session()->has('moneda_seleccionada')) {
-            $monedaSesion = Moneda::where('codigo_iso', session('moneda_seleccionada'))
-                ->where('is_active', true)
-                ->first();
-
-            if ($monedaSesion) {
-                $monedaActual = $monedaSesion;
-                $codigoMonedaActual = $monedaSesion->codigo_iso;
-            }
-        }
-
-        // 2. Si no hay moneda en sesión, verificar usuario autenticado
-        if (!$monedaActual && Auth::guard('client')->check()) {
-            $user = Auth::guard('client')->user();
-            $cliente = $user->client;
-
-            if ($cliente && $cliente->pais) {
-                // Buscar moneda por el país del cliente
-                $monedaPorPais = Moneda::where('pais', $cliente->pais)
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($monedaPorPais) {
-                    $monedaActual = $monedaPorPais;
-                    $codigoMonedaActual = $monedaPorPais->codigo_iso;
-                }
-            }
-        }
-
-        // 3. Si no hay moneda (ni sesión, ni cliente autenticado), intentar con geolocalización
-        if (!$monedaActual) {
-            $geoInfo = GeoLocation::getCountryInfo();
-
-            if (isset($geoInfo['country'])) {
-                // Buscar moneda por el país detectado
-                $monedaPorGeo = Moneda::where('pais', $geoInfo['country'])
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($monedaPorGeo) {
-                    $monedaActual = $monedaPorGeo;
-                    $codigoMonedaActual = $monedaPorGeo->codigo_iso;
-                }
-            }
-        }
-
-        // 4. Si aún no hay moneda, usar USD como último recurso
-        if (!$monedaActual) {
-            $monedaActual = Moneda::where('codigo_iso', 'USD')
-                ->where('is_active', true)
-                ->first();
-
-            // Si por alguna razón no existe USD en BD, usar la primera disponible
-            if (!$monedaActual) {
-                $monedaActual = Moneda::where('is_active', true)->first();
-                if ($monedaActual) {
-                    $codigoMonedaActual = $monedaActual->codigo_iso;
-                } else {
-                    // Fallback extremo - datos quemados (no debería pasar)
-                    $monedaActual = (object)[
-                        'id' => 0,
-                        'codigo_iso' => 'USD',
-                        'simbolo' => '$',
-                        'nombre' => 'Dólar Americano'
-                    ];
-                }
-            } else {
-                $codigoMonedaActual = 'USD';
-            }
-        }
-
-        // PROCESAR CADA PRODUCTO CON SUS PRECIOS
-        $productosProcesados = $productos->map(function($producto) use ($monedaActual) {
+        // Procesar cada producto con sus precios
+        $productos->getCollection()->transform(function($producto) use ($monedaActual) {
             // Buscar precio en moneda actual
             $precioEnMonedaActual = $producto->precios
                 ->where('moneda_id', $monedaActual->id)
@@ -215,20 +309,8 @@ class ProductosController extends Controller
             ];
         });
 
-        // Obtener información de geolocalización para la vista
-        $userGeoInfo = null;
-        $userGeoInfo = GeoLocation::getCountryInfo();
-
-        return view('client.productos.index', compact(
-            'categorias',
-            'productosProcesados',
-            'totalItems',
-            'monedaActual',
-            'codigoMonedaActual',
-            'userGeoInfo'
-        ));
+        return $productos;
     }
-
     // Agregar producto al carrito
     public function agregarAlCarrito(Request $request, Producto $producto)
     {

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProductosController;
+use App\Http\Controllers\MonedaController;
 use Illuminate\Http\Request;
 
 
@@ -12,11 +13,7 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/productos', [ProductosController::class, 'index'])->name('producto.index');
 Route::get('/productos/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
 
-Route::post('/cambiar-moneda', function (Request $request) {
-    $request->validate(['currency' => 'required|string|size:3']);
-    session(['moneda_seleccionada' => $request->currency]);
-    return response()->json(['success' => true]);
-})->name('cambiar.moneda');
+Route::post('/cambiar-moneda', [MonedaController::class, 'cambiar'])->name('cambiar.moneda');
 
 // Rutas del carrito - TODAS USANDO POST para simplificar (o todas usando el método HTTP apropiado)
 Route::get('/carrito/ver', [ProductosController::class, 'verCarrito'])->name('carrito.ver');

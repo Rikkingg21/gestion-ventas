@@ -4,83 +4,161 @@ namespace App\Helpers;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class GeoLocation
 {
     /**
-     * Obtener información del país basado en la IP
+     * Obtener IP real para geolocalización
      */
-    public static function getCountryInfo($ip = null)
+    protected static function getIpForGeoLocation($ip = null)
     {
-        if (!$ip) {
-            $ip = request()->ip();
+        $ip = $ip ?? request()->ip();
+
+        // SOLO PARA DESARROLLO - Comentar en producción
+        if (app()->environment('local')) {
+            // Usar una IP pública conocida (ej: Google DNS, Cloudflare, etc)
+            $testIp = '190.12.74.242'; // IP de UGELT
+            //$testIp = '1.178.29.255'; //ip MExico
+            //$testIp = '1.0.3.255'; //ip China
+            //$testIp = '8.8.8.8'; // IP de Googl
+            //$testIp = '80.66.14.38'; //Alemania
+            // $testIp = '1.1.1.1'; // IP de Cloudflare
+            // $testIp = '208.67.222.222'; // IP de OpenDNS
+            /*
+            Log::info('MODO DESARROLLO: Usando IP de prueba', [
+                'original_ip' => $ip,
+                'test_ip' => $testIp
+            ]);
+            */
+
+            return $testIp;
         }
 
-        // No intentar detectar para IPs locales
-        if ($ip == '127.0.0.1' || $ip == '::1' || str_starts_with($ip, '192.168.')) {
-            return self::getDefaultCountry();
+        // Código normal para producción...
+        if (self::isLocalIp($ip)) {
+            $publicIp = self::getPublicIp();
+            if ($publicIp) {
+                return $publicIp;
+            }
+            throw new \Exception('No se puede determinar ubicación en entorno local sin IP pública');
         }
 
-        // Usar caché para evitar muchas llamadas a la API
-        return Cache::remember('geoip_' . $ip, now()->addDays(1), function () use ($ip) {
-            try {
-                // Usando ipapi.co (gratuito para uso básico)
-                $response = Http::get("http://ip-api.com/json/{$ip}");
+        return $ip;
+    }
 
-                if ($response->successful()) {
+    // Obtener información de ubicación basada en IP
+    public static function getLocationInfo($ip = null)
+    {
+        try {
+            $ipForGeo = self::getIpForGeoLocation($ip);
+
+            return Cache::remember('geo_location_' . $ipForGeo, now()->addDay(), function () use ($ipForGeo) {
+                // Intentar con ip-api.com
+                $response = Http::timeout(5)->get("http://ip-api.com/json/{$ipForGeo}?fields=status,country,countryCode,region,city,isp,query");
+
+                if ($response->successful() && $response->json('status') === 'success') {
                     $data = $response->json();
-
-                    if ($data['status'] == 'success') {
-                        return [
-                            'country' => $data['country'],
-                            'country_code' => $data['countryCode'],
-                            'currency' => self::getCurrencyFromCountry($data['countryCode']),
-                            'flag' => strtolower($data['countryCode'])
-                        ];
-                    }
+                    Log::info('Geolocalización exitosa:', $data);
+                    return $data;
                 }
 
-                return self::getDefaultCountry();
+                throw new \Exception('No se pudo obtener geolocalización de ip-api.com');
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Error en geolocalización: ' . $e->getMessage());
+            throw $e; // Relanzamos la excepción para que el composer sepa que falló
+        }
+    }
+
+    // Obtener país desde IP
+    public static function getCountry($ip = null)
+    {
+        $info = self::getLocationInfo($ip);
+        return $info['country'];
+    }
+
+    // Obtener código de país (ISO) desde IP
+    public static function getCountryCode($ip = null)
+    {
+        $info = self::getLocationInfo($ip);
+        return $info['countryCode'];
+    }
+
+    // Obtener IP pública del servidor
+    protected static function getPublicIp()
+    {
+        // Intentar con varios servicios
+        $services = [
+            'https://api.ipify.org',
+            'https://icanhazip.com',
+            'https://ifconfig.me/ip'
+        ];
+
+        foreach ($services as $service) {
+            try {
+                $response = Http::timeout(3)->get($service);
+                if ($response->successful()) {
+                    $ip = trim($response->body());
+                    if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                        return $ip;
+                    }
+                }
             } catch (\Exception $e) {
-                return self::getDefaultCountry();
+                continue;
             }
-        });
+        }
+
+        return null;
     }
 
-    /**
-     * Obtener moneda basada en código de país
-     */
-    public static function getCurrencyFromCountry($countryCode)
+    // Verificar si es IP local
+    protected static function isLocalIp($ip)
     {
-        $currencies = [
-            'PE' => ['code' => 'PEN', 'symbol' => 'S/', 'name' => 'Sol Peruano'],
-            'US' => ['code' => 'USD', 'symbol' => '$', 'name' => 'Dólar Americano'],
-            'MX' => ['code' => 'MXN', 'symbol' => '$', 'name' => 'Peso Mexicano'],
-            'CO' => ['code' => 'COP', 'symbol' => '$', 'name' => 'Peso Colombiano'],
-            'CL' => ['code' => 'CLP', 'symbol' => '$', 'name' => 'Peso Chileno'],
-            'AR' => ['code' => 'ARS', 'symbol' => '$', 'name' => 'Peso Argentino'],
-            'BR' => ['code' => 'BRL', 'symbol' => 'R$', 'name' => 'Real Brasileño'],
-            'EC' => ['code' => 'USD', 'symbol' => '$', 'name' => 'Dólar Americano'],
-            'BO' => ['code' => 'BOB', 'symbol' => 'Bs', 'name' => 'Boliviano'],
-            'PY' => ['code' => 'PYG', 'symbol' => '₲', 'name' => 'Guaraní'],
-            'UY' => ['code' => 'UYU', 'symbol' => '$U', 'name' => 'Peso Uruguayo'],
-            'VE' => ['code' => 'VES', 'symbol' => 'Bs.S', 'name' => 'Bolívar'],
-            'ES' => ['code' => 'EUR', 'symbol' => '€', 'name' => 'Euro'],
+        $localIps = [
+            '127.0.0.1',
+            '::1',
+            'localhost',
+            '0.0.0.0'
         ];
 
-        return $currencies[$countryCode] ?? ['code' => 'USD', 'symbol' => '$', 'name' => 'Dólar Americano'];
+        if (in_array($ip, $localIps)) {
+            return true;
+        }
+
+        // Rangos de IPs privadas
+        if (strpos($ip, '192.168.') === 0) return true;
+        if (strpos($ip, '10.') === 0) return true;
+        if (preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $ip)) return true;
+
+        return false;
     }
 
-    /**
-     * Configuración por defecto
-     */
-    public static function getDefaultCountry()
+    // Verificar si la IP es de un país específico
+    public static function isCountry($countries, $ip = null)
     {
-        return [
-            'country' => 'Perú',
-            'country_code' => 'PE',
-            'currency' => ['code' => 'PEN', 'symbol' => 'S/', 'name' => 'Sol Peruano'],
-            'flag' => 'pe'
-        ];
+        $countryCode = self::getCountryCode($ip);
+        $countries = is_array($countries) ? $countries : [$countries];
+        return in_array($countryCode, $countries);
+    }
+
+    public static function getCountryInfo($ip = null)
+    {
+        try {
+            $info = self::getLocationInfo($ip);
+            return [
+                'code' => $info['countryCode'] ?? null,
+                'name' => $info['country'] ?? null,
+                'success' => true
+            ];
+        } catch (\Exception $e) {
+            Log::warning('No se pudo determinar país: ' . $e->getMessage());
+            return [
+                'code' => null,
+                'name' => null,
+                'success' => false
+            ];
+        }
     }
 }
