@@ -35,7 +35,6 @@ class LoginController extends Controller
 
         // GUARDAR EL SESSION_ID ANTES DEL LOGIN
         $oldSessionId = Session::getId();
-        Log::info('Session ID antes del login:', ['old_session_id' => $oldSessionId]);
 
         // Intentar autenticar con el guard de clientes
         if (Auth::guard('client')->attempt(['email' => $request->email, 'password' => $request->password])) {

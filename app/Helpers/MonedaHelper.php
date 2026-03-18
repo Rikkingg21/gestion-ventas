@@ -13,90 +13,72 @@ use Illuminate\Support\Facades\Auth;
 class MonedaHelper
 {
     // Obtener la moneda actual (prioridad: usuario -> sesión -> país -> default)
-public static function getMonedaActual()
-{
-    // 1. PRIORIDAD 1: Moneda seleccionada manualmente (SIEMPRE primero)
-    if (session()->has('moneda_seleccionada')) {
-        $codigoIso = session('moneda_seleccionada');
-        $moneda = self::getMonedaByCodigo($codigoIso);
-
-        if ($moneda && $moneda->is_active) {
-            Log::info('Usando moneda seleccionada manualmente', [
-                'codigo' => $codigoIso,
-                'moneda_id' => $moneda->id
-            ]);
-            return $moneda;
-        }
-    }
-
-    // 2. PRIORIDAD 2: Usuario logueado (solo si NO hay moneda seleccionada manualmente)
-    if (Auth::guard('client')->check()) {
-        $user = Auth::guard('client')->user();
-
-        if (!empty($user->pais)) {
-            $moneda = self::getMonedaByPais($user->pais);
+    public static function getMonedaActual()
+    {
+        // 1. PRIORIDAD 1: Moneda seleccionada manualmente (SIEMPRE primero)
+        if (session()->has('moneda_seleccionada')) {
+            $codigoIso = session('moneda_seleccionada');
+            $moneda = self::getMonedaByCodigo($codigoIso);
 
             if ($moneda && $moneda->is_active) {
-                Log::info('Usando moneda del usuario (sin selección manual)', [
-                    'user_id' => $user->id,
-                    'pais_code' => $user->pais,
-                    'moneda' => $moneda->codigo_iso
-                ]);
-                session(['moneda_seleccionada' => $moneda->codigo_iso]);
                 return $moneda;
             }
         }
-    }
 
-    // 3. PRIORIDAD 3: Moneda por país detectado (GeoLocation)
-    try {
-        $countryInfo = GeoLocation::getCountryInfo();
-        $countryCode = $countryInfo['code'];
+        // 2. PRIORIDAD 2: Usuario logueado (solo si NO hay moneda seleccionada manualmente)
+        if (Auth::guard('client')->check()) {
+            $user = Auth::guard('client')->user();
 
-        if ($countryCode) {
-            $moneda = self::getMonedaByPais($countryCode);
+            if (!empty($user->pais)) {
+                $moneda = self::getMonedaByPais($user->pais);
 
-            if ($moneda) {
-                Log::info('Usando moneda por GeoLocation', [
-                    'pais_code' => $countryCode,
-                    'moneda' => $moneda->codigo_iso
-                ]);
-                session(['moneda_seleccionada' => $moneda->codigo_iso]);
-                return $moneda;
+                if ($moneda && $moneda->is_active) {
+                    session(['moneda_seleccionada' => $moneda->codigo_iso]);
+                    return $moneda;
+                }
             }
         }
-    } catch (\Exception $e) {
-        // Silenciosamente ignoramos el error
+
+        // 3. PRIORIDAD 3: Moneda por país detectado (GeoLocation)
+        try {
+            $countryInfo = GeoLocation::getCountryInfo();
+            $countryCode = $countryInfo['code'];
+
+            if ($countryCode) {
+                $moneda = self::getMonedaByPais($countryCode);
+
+                if ($moneda) {
+                    session(['moneda_seleccionada' => $moneda->codigo_iso]);
+                    return $moneda;
+                }
+            }
+        } catch (\Exception $e) {
+            // Silenciosamente ignoramos el error
+        }
+
+        // 4. PRIORIDAD 4: Moneda por defecto (USD)
+        $monedaDefault = self::getMonedaDefault();
+
+        if ($monedaDefault) {
+            session(['moneda_seleccionada' => $monedaDefault->codigo_iso]);
+            return $monedaDefault;
+        }
+
+        // 5. ÚLTIMO RECURSO: Moneda virtual USD
+        $virtualMoneda = (object)[
+            'id' => null,
+            'codigo_iso' => 'USD',
+            'simbolo' => '$',
+            'nombre' => 'Dólar Americano',
+            'pais' => 'United States',
+            'pais_code' => 'US',
+            'tasa_cambio_usd' => 1,
+            'is_active' => true
+        ];
+
+        session(['moneda_seleccionada' => 'USD']);
+        return $virtualMoneda;
     }
-
-    // 4. PRIORIDAD 4: Moneda por defecto (USD)
-    $monedaDefault = self::getMonedaDefault();
-
-    if ($monedaDefault) {
-        Log::info('Usando moneda por defecto', [
-            'codigo' => $monedaDefault->codigo_iso
-        ]);
-        session(['moneda_seleccionada' => $monedaDefault->codigo_iso]);
-        return $monedaDefault;
-    }
-
-    // 5. ÚLTIMO RECURSO: Moneda virtual USD
-    Log::warning('No hay monedas en BD, usando USD virtual');
-    $virtualMoneda = (object)[
-        'id' => null,
-        'codigo_iso' => 'USD',
-        'simbolo' => '$',
-        'nombre' => 'Dólar Americano',
-        'pais' => 'United States',
-        'pais_code' => 'US',
-        'tasa_cambio_usd' => 1,
-        'is_active' => true
-    ];
-
-    session(['moneda_seleccionada' => 'USD']);
-    return $virtualMoneda;
-}
-
 
     // Obtener moneda por código de país (pais_code)
     public static function getMonedaByPais($countryCode = null)
