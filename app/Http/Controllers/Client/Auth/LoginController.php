@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Client\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\ProductosController;
+use App\Http\Controllers\CarritoController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -62,8 +62,8 @@ class LoginController extends Controller
             $request->session()->regenerate();
 
             // PASAMOS EL OLD_SESSION_ID A LA MIGRACIÓN
-            $productosController = new ProductosController();
-            $productosController->migrarCarritoSesionACliente($oldSessionId);
+            $carritoController = new CarritoController();
+            $carritoController->migrarCarritoSesionACliente($oldSessionId);
 
             return redirect()->intended(route('home'))
                 ->with('success', '¡Bienvenido de nuevo, ' . $user->nombres . '!');

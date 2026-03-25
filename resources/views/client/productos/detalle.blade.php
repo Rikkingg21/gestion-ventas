@@ -20,18 +20,23 @@
             <div class="row g-4">
                 <!-- Galería de imágenes -->
                 <div class="col-md-6">
+                    <?php
+                        $images = \App\Helpers\ImagenesHelper::getImagenesProducto($producto);
+                        $defaultImage = \App\Helpers\ImagenesHelper::getDefaultImage();
+                    ?>
+
                     <!-- Imagen principal -->
                     <div class="main-image-container mb-3">
                         <img id="mainProductImage"
-                             src="{{ count($images) > 0 ? $images[0] : asset('images/placeholder.jpg') }}"
+                             src="{{ count($images) > 0 ? $images[0] : $defaultImage }}"
                              class="img-fluid rounded-3 shadow w-100"
                              alt="{{ $producto->nombre }}"
                              style="height: 400px; object-fit: contain; background-color: #f8f9fa;"
-                             onerror="this.onerror=null; this.src='{{ asset('images/placeholder.jpg') }}';">
+                             onerror="this.onerror=null; this.src='{{ $defaultImage }}';">
                     </div>
 
                     <!-- Miniaturas -->
-                    @if(count($images) > 0)
+                    @if(count($images) > 1)
                         <div class="thumbnail-gallery d-flex gap-2 flex-wrap">
                             @foreach($images as $index => $image)
                                 <div class="thumbnail-item {{ $index == 0 ? 'active' : '' }}"
@@ -40,7 +45,7 @@
                                     <img src="{{ $image }}"
                                          alt="Miniatura {{ $index + 1 }}"
                                          style="width: 80px; height: 80px; object-fit: cover;"
-                                         onerror="this.onerror=null; this.src='{{ asset('images/placeholder-thumb.jpg') }}';">
+                                         onerror="this.onerror=null; this.src='{{ $defaultImage }}';">
                                 </div>
                             @endforeach
                         </div>
@@ -53,79 +58,115 @@
                         <div class="card-body">
                             <!-- Etiquetas de estado -->
                             <div class="d-flex gap-2 mb-3 flex-wrap">
-                                @if($productData['is_new'])
+                                @if($producto->created_at && $producto->created_at->diffInDays(now()) <= 30)
                                     <span class="badge bg-success">Nuevo</span>
                                 @endif
-                                <span class="badge bg-warning text-dark">+5 vendidos</span>
+                                @if($producto->esDigital())
+                                    <span class="badge bg-info">Producto Digital</span>
+                                @endif
+                                @if($precioInfo['tiene_descuento'])
+                                    <span class="badge bg-danger">-{{ $precioInfo['porcentaje_descuento'] }}% OFF</span>
+                                @endif
                             </div>
 
                             <h1 class="fw-bold mb-3">{{ $producto->nombre }}</h1>
 
-                            <!-- Rating -->
-                            @if(isset($productData['rating']))
-                                <div class="d-flex align-items-center mb-3">
-                                    <div class="text-warning me-2">
-                                        @for($i = 1; $i <= 5; $i++)
-                                            @if($i <= floor($productData['rating']))
-                                                <i class="fas fa-star"></i>
-                                            @elseif($i - $productData['rating'] <= 0.5)
-                                                <i class="fas fa-star-half-alt"></i>
-                                            @else
-                                                <i class="far fa-star"></i>
-                                            @endif
-                                        @endfor
-                                    </div>
-                                    <span class="text-secondary">({{ $productData['total_reviews'] }} reseñas)</span>
+                            @if($producto->sku)
+                                <div class="text-muted small mb-3">
+                                    <i class="fas fa-barcode me-1"></i> SKU: {{ $producto->sku }}
                                 </div>
                             @endif
 
                             <!-- Precios con descuento -->
-                            @if($productData['precio_con_descuento']['tiene_descuento'])
-                                <div class="mb-3">
-                                    <span class="text-secondary text-decoration-line-through fs-5 me-2">
-                                        S/ {{ number_format($productData['precio_con_descuento']['precio_original_local'], 2) }}
-                                    </span>
+                            <div class="mb-3">
+                                @if($precioInfo['tiene_descuento'])
+                                    <div class="d-flex align-items-baseline gap-3 flex-wrap">
+                                        <span class="text-secondary text-decoration-line-through fs-5">
+                                            {{ $precioInfo['precio_original_formateado'] }}
+                                        </span>
+                                        <span class="fw-bold text-success fs-1">
+                                            {{ $precioInfo['precio_con_descuento_formateado'] }}
+                                        </span>
+                                        <span class="badge bg-success fs-6 px-3 py-2">
+                                            Ahorra {{ $precioInfo['ahorro_formateado'] }}
+                                        </span>
+                                    </div>
+                                @else
                                     <span class="fw-bold text-success fs-1">
-                                        S/ {{ number_format($productData['precio_con_descuento']['precio_final_local'], 2) }}
+                                        {{ $precioInfo['precio_original_formateado'] }}
                                     </span>
-                                    <span class="badge bg-success ms-2">
-                                        {{ $productData['precio_con_descuento']['porcentaje'] }}% OFF
-                                    </span>
-                                </div>
-                            @else
-                                <div class="mb-3">
-                                    <span class="fw-bold text-success fs-1">
-                                        S/ {{ number_format($productData['precio_con_descuento']['precio_final_local'], 2) }}
-                                    </span>
+                                @endif
+                            </div>
+
+                            <!-- Descripción -->
+                            @if($producto->descripcion)
+                                <div class="mb-4">
+                                    <h6 class="fw-bold mb-2">Descripción</h6>
+                                    <p class="text-secondary">{{ $producto->descripcion }}</p>
                                 </div>
                             @endif
 
-                            <!-- Lo que tienes que saber -->
+                            <!-- Características del producto -->
                             <div class="mb-4">
-                                <h6 class="fw-bold mb-3">Lo que tienes que saber de este producto</h6>
+                                <h6 class="fw-bold mb-3">Características</h6>
                                 <ul class="list-unstyled">
-                                    @foreach($productData['caracteristicas'] as $key => $value)
+                                    @if($producto->esDigital())
                                         <li class="mb-2">
-                                            <i class="fas fa-check-circle text-success me-2"></i>
-                                            <strong>{{ $key }}:</strong> {{ $value }}
+                                            <i class="fas fa-cloud-download-alt text-success me-2"></i>
+                                            <strong>Tipo:</strong> Producto digital
                                         </li>
-                                    @endforeach
+                                        <li class="mb-2">
+                                            <i class="fas fa-tachometer-alt text-success me-2"></i>
+                                            <strong>Entrega:</strong> Descarga inmediata después de la compra
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-infinity text-success me-2"></i>
+                                            <strong>Stock:</strong> Ilimitado
+                                        </li>
+                                    @else
+                                        <li class="mb-2">
+                                            <i class="fas fa-box text-success me-2"></i>
+                                            <strong>Tipo:</strong> Producto físico
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-truck text-success me-2"></i>
+                                            <strong>Envío:</strong> A todo el país
+                                        </li>
+                                        @if($producto->stock_actual !== null)
+                                            <li class="mb-2">
+                                                <i class="fas fa-cubes text-success me-2"></i>
+                                                <strong>Stock disponible:</strong> {{ $producto->stock_actual }} unidades
+                                            </li>
+                                        @endif
+                                    @endif
                                 </ul>
                             </div>
 
                             <!-- Stock para productos físicos -->
-                            @if($producto->esFisico() && $productData['stock_actual'] !== null)
+                            @if($producto->esFisico())
                                 <div class="mb-4">
-                                    <span class="badge {{ $productData['stock_actual'] > 0 ? 'bg-success' : 'bg-danger' }} py-2 px-3">
-                                        <i class="fas {{ $productData['stock_actual'] > 0 ? 'fa-check-circle' : 'fa-times-circle' }} me-1"></i>
-                                        {{ $productData['stock_actual'] > 0 ? $productData['stock_actual'] . ' disponibles' : 'Agotado' }}
-                                    </span>
+                                    @if($producto->stock_actual > 10)
+                                        <span class="badge bg-success py-2 px-3">
+                                            <i class="fas fa-check-circle me-1"></i>
+                                            {{ $producto->stock_actual }} unidades disponibles
+                                        </span>
+                                    @elseif($producto->stock_actual > 0)
+                                        <span class="badge bg-warning py-2 px-3">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            ¡Últimas {{ $producto->stock_actual }} unidades!
+                                        </span>
+                                    @else
+                                        <span class="badge bg-danger py-2 px-3">
+                                            <i class="fas fa-times-circle me-1"></i>
+                                            Producto agotado
+                                        </span>
+                                    @endif
                                 </div>
                             @endif
 
                             <!-- Botones de acción -->
                             <div class="d-grid gap-3">
-                                @if($producto->esFisico() && $productData['stock_actual'] == 0)
+                                @if($producto->esFisico() && $producto->stock_actual == 0)
                                     <button class="btn btn-secondary btn-lg" disabled>
                                         <i class="fas fa-times-circle me-2"></i>
                                         Producto no disponible
@@ -146,21 +187,6 @@
         <!-- Columna derecha: Carrito Sidebar -->
         <div class="col-lg-3">
             @include('client.partials.carrito-sidebar')
-
-            <!-- Productos relacionados -->
-            <div class="card shadow-sm border-0 mt-4">
-                <div class="card-header bg-success text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-tag me-2"></i>Más productos
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-secondary small mb-0">
-                        Ver más productos de {{ $producto->categoria->nombre }}
-                    </p>
-                    <!-- Aquí puedes agregar productos relacionados -->
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -210,38 +236,46 @@
         background: #047857;
     }
 
-    /* Rating stars */
-    .fa-star, .fa-star-half-alt {
-        color: #ffc107;
+    @media (max-width: 768px) {
+        .main-image-container img {
+            height: 300px !important;
+        }
     }
 </style>
 
-<!-- Script para cambiar imagen principal -->
 <script>
+// Cambiar imagen principal
 function changeMainImage(imageUrl, element) {
-    document.getElementById('mainProductImage').src = imageUrl;
+    const mainImage = document.getElementById('mainProductImage');
+    if (mainImage) {
+        mainImage.src = imageUrl;
+    }
 
+    // Actualizar estado activo de miniaturas
     document.querySelectorAll('.thumbnail-item').forEach(item => {
         item.style.borderColor = 'transparent';
         item.classList.remove('active');
     });
 
-    element.style.borderColor = '#065f46';
-    element.classList.add('active');
+    if (element) {
+        element.style.borderColor = '#065f46';
+        element.classList.add('active');
+    }
 }
 
-// Script para agregar al carrito (igual que antes)
+// Agregar al carrito
 function agregarAlCarrito(productoId) {
-    const button = event.currentTarget;
-    const originalText = button.innerHTML;
+    const button = event?.currentTarget;
+    if (!button) return;
 
+    const originalText = button.innerHTML;
     button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Agregando...';
     button.disabled = true;
 
     fetch(`/carrito/agregar/${productoId}`, {
         method: 'POST',
         headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         },
@@ -254,8 +288,17 @@ function agregarAlCarrito(productoId) {
                 window.actualizarSidebarCarrito();
             }
 
+            // Mostrar notificación de éxito
             if (typeof window.mostrarNotificacion === 'function') {
                 window.mostrarNotificacion('Producto agregado al carrito', 'success');
+            } else {
+                // Feedback visual temporal
+                button.innerHTML = '<i class="fas fa-check me-2"></i>¡Agregado!';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 2000);
+                return;
             }
         } else {
             if (typeof window.mostrarNotificacion === 'function') {
@@ -264,6 +307,8 @@ function agregarAlCarrito(productoId) {
                 alert(data.error || 'No se pudo agregar el producto');
             }
         }
+        button.innerHTML = originalText;
+        button.disabled = false;
     })
     .catch(error => {
         console.error('Error:', error);
@@ -272,8 +317,6 @@ function agregarAlCarrito(productoId) {
         } else {
             alert('Error al agregar el producto');
         }
-    })
-    .finally(() => {
         button.innerHTML = originalText;
         button.disabled = false;
     });

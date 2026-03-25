@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProductosController;
+use App\Http\Controllers\ProductosApiController;
+use App\Http\Controllers\CarritoController;
 use App\Http\Controllers\MonedaController;
 use Illuminate\Http\Request;
 
@@ -13,14 +15,19 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/productos', [ProductosController::class, 'index'])->name('producto.index');
 Route::get('/productos/{id}', [ProductosController::class, 'show'])->name('producto.detalle');
 
+Route::prefix('api')->group(function () {
+    Route::get('/productos', [ProductosApiController::class, 'index']);
+    Route::get('/productos/{id}', [ProductosApiController::class, 'show']);
+});
+
 Route::post('/cambiar-moneda', [MonedaController::class, 'cambiar'])->name('cambiar.moneda');
 
 // Rutas del carrito - TODAS USANDO POST para simplificar (o todas usando el método HTTP apropiado)
-Route::get('/carrito/ver', [ProductosController::class, 'verCarrito'])->name('carrito.ver');
-Route::post('/carrito/agregar/{producto}', [ProductosController::class, 'agregarAlCarrito'])->name('carrito.agregar');
-Route::post('/carrito/actualizar-item/{item}', [ProductosController::class, 'actualizarCantidad'])->name('carrito.actualizar-item');
-Route::delete('/carrito/eliminar/{productoId}', [ProductosController::class, 'eliminarDelCarrito'])->name('carrito.eliminar');
-Route::post('/carrito/vaciar', [ProductosController::class, 'vaciarCarrito'])->name('carrito.vaciar');
+Route::get('/carrito/ver', [CarritoController::class, 'verCarrito'])->name('carrito.ver');
+Route::post('/carrito/agregar/{producto}', [CarritoController::class, 'agregarAlCarrito'])->name('carrito.agregar');
+Route::post('/carrito/actualizar-item/{item}', [CarritoController::class, 'actualizarCantidad'])->name('carrito.actualizar-item');
+Route::delete('/carrito/eliminar/{productoId}', [CarritoController::class, 'eliminarDelCarrito'])->name('carrito.eliminar');
+Route::post('/carrito/vaciar', [CarritoController::class, 'vaciarCarrito'])->name('carrito.vaciar');
 
 Route::get('/checkout', [App\Http\Controllers\Client\PayController::class, 'index'])->name('checkout.index')->middleware('auth:client');
 Route::post('/checkout', [App\Http\Controllers\Client\PayController::class, 'store'])->name('checkout.store')->middleware('client.auth');

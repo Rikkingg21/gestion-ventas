@@ -59,7 +59,6 @@ class GeoLocation
 
                 if ($response->successful() && $response->json('status') === 'success') {
                     $data = $response->json();
-                    Log::info('Geolocalización exitosa:', $data);
                     return $data;
                 }
 
