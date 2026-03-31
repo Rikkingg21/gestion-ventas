@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\MonedaHelper;
+use App\Models\Cupon;
+use App\Models\Moneda;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -26,10 +28,61 @@ class MonedaController extends Controller
                 ]
             ]);
 
-            // Obtener la moneda completa para guardar más información
+            // Obtener la moneda completa
             $moneda = MonedaHelper::getMonedaByCodigo($request->currency);
+            $monedaAnterior = MonedaHelper::getMonedaActual();
 
-            // Guardar en sesión (podemos guardar solo el código o todo el objeto)
+            // Verificar si hay un cupón incompatible
+            $cuponIncompatible = null;
+            $cuponInfo = null;
+
+            if (session()->has('cupon_aplicado')) {
+                $cuponSesion = session('cupon_aplicado');
+                $cupon = Cupon::find($cuponSesion['id']);
+
+                if ($cupon && $cupon->moneda_id && $cupon->moneda_id != $moneda->id) {
+                    $monedaCupon = Moneda::find($cupon->moneda_id);
+                    $nombreMonedaCupon = $monedaCupon ? $monedaCupon->nombre : 'otra moneda';
+                    $simboloMonedaCupon = $monedaCupon ? $monedaCupon->simbolo : '';
+
+                    $cuponIncompatible = true;
+                    $cuponInfo = [
+                        'id' => $cupon->id,
+                        'codigo' => $cupon->codigo,
+                        'descuento' => $cupon->porcentaje_descuento
+                            ? "{$cupon->porcentaje_descuento}% de descuento"
+                            : "{$simboloMonedaCupon} " . number_format($cupon->descuento_monto, 2),
+                        'moneda_original' => $nombreMonedaCupon,
+                        'moneda_nueva' => $moneda->nombre,
+                        'moneda_nueva_codigo' => $moneda->codigo_iso
+                    ];
+                }
+            }
+
+            // Si hay cupón incompatible, preguntar antes de cambiar
+            if ($cuponIncompatible && !$request->has('confirmar')) {
+                return response()->json([
+                    'success' => false,
+                    'requires_confirmation' => true,
+                    'cupon_info' => $cuponInfo,
+                    'new_currency' => [
+                        'codigo' => $moneda->codigo_iso,
+                        'simbolo' => $moneda->simbolo,
+                        'nombre' => $moneda->nombre
+                    ]
+                ]);
+            }
+
+            // Si llegamos aquí, es porque no hay cupón incompatible o el usuario confirmó
+            if ($cuponIncompatible && $request->has('confirmar') && $request->confirmar === true) {
+                // Eliminar cupón de sesión
+                session()->forget('cupon_aplicado');
+                $mensajeCupon = " El cupón '{$cuponInfo['codigo']}' ({$cuponInfo['descuento']}) ha sido eliminado porque solo era válido para compras en {$cuponInfo['moneda_original']}.";
+            } else {
+                $mensajeCupon = '';
+            }
+
+            // Guardar nueva moneda en sesión
             session([
                 'moneda_seleccionada' => $request->currency,
                 'moneda_id' => $moneda->id,
@@ -41,32 +94,27 @@ class MonedaController extends Controller
                 ]
             ]);
 
-            // Limpiar cachés relacionados con monedas si es necesario
-            // MonedaHelper::clearCache(); // Si tienes este método
-
-            Log::info('Moneda cambiada exitosamente', [
-                'currency' => $request->currency,
-                'moneda_id' => $moneda->id,
-                'user_ip' => request()->ip()
-            ]);
+            // Construir mensaje de respuesta
+            $mensaje = "Moneda cambiada a {$moneda->nombre} ({$moneda->simbolo})";
+            if ($mensajeCupon) {
+                $mensaje .= $mensajeCupon;
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Moneda cambiada correctamente',
+                'message' => $mensaje,
+                'message_type' => $mensajeCupon ? 'warning' : 'success',
                 'currency' => $request->currency,
                 'moneda' => [
+                    'id' => $moneda->id,
                     'codigo' => $moneda->codigo_iso,
                     'simbolo' => $moneda->simbolo,
                     'nombre' => $moneda->nombre
-                ]
+                ],
+                'recargar' => true
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('Intento de cambiar a moneda no válida', [
-                'currency' => $request->currency,
-                'errors' => $e->errors()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => 'Moneda no válida',

@@ -392,6 +392,43 @@
                 </div>
             </div>
         </nav>
+        <!-- Modal de confirmación para cambio de moneda -->
+        <div class="modal fade" id="confirmarCambioMonedaModal" tabindex="-1" aria-labelledby="confirmarCambioMonedaModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title" id="confirmarCambioMonedaModalLabel">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ¿Cambiar moneda?
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="modalCuponInfo" class="alert alert-danger">
+                            <i class="fas fa-tag me-2"></i>
+                            <strong id="cuponCodigo"></strong><br>
+                            <span id="cuponDescuento"></span>
+                            <p class="mt-2 mb-0 small" id="cuponMensajePerdida"></p>
+                        </div>
+                        <p class="mb-0">¿Deseas continuar con el cambio de moneda?</p>
+                        <p class="text-danger small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Al cambiar de moneda, perderás el descuento del cupón.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="cancelarCambioBtn">
+                            <i class="fas fa-times me-2"></i>
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-warning" id="confirmarCambioBtn">
+                            <i class="fas fa-exchange-alt me-2"></i>
+                            Continuar con el cambio
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </header>
 
     <!-- Contenido principal -->
@@ -422,9 +459,16 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ asset('js/carrito.js') }}"></script>
     <script>
+        // Variable para almacenar la moneda pendiente de cambio
+        let pendingCurrencyChange = null;
+        let pendingButton = null;
+        let pendingButtonOriginalText = '';
+
         function cambiarMoneda(currencyCode) {
             const button = event.target.closest('button');
             const originalText = button.innerHTML;
+
+            // Mostrar estado de carga
             button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             button.disabled = true;
 
@@ -440,20 +484,157 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    setTimeout(() => location.reload(), 300);
+                    // Cambio exitoso sin necesidad de confirmación
+                    mostrarNotificacion(data.message, data.message_type || 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else if (data.requires_confirmation) {
+                    // Necesita confirmación del usuario
+                    pendingCurrencyChange = currencyCode;
+                    pendingButton = button;
+                    pendingButtonOriginalText = originalText;
+
+                    // Mostrar información del cupón en el modal
+                    document.getElementById('cuponCodigo').textContent = `Cupón: ${data.cupon_info.codigo}`;
+                    document.getElementById('cuponDescuento').textContent = `Descuento: ${data.cupon_info.descuento}`;
+                    document.getElementById('cuponMensajePerdida').innerHTML =
+                        `Este cupón solo es válido para compras en <strong>${data.cupon_info.moneda_original}</strong>.<br>
+                        Al cambiar a <strong>${data.new_currency.nombre} (${data.new_currency.simbolo})</strong>, perderás este descuento.`;
+
+                    // Mostrar modal
+                    const modal = new bootstrap.Modal(document.getElementById('confirmarCambioMonedaModal'));
+                    modal.show();
+
+                    // Restaurar botón
+                    button.innerHTML = originalText;
+                    button.disabled = false;
                 } else {
-                    alert('Error: ' + (data.message || 'No se pudo cambiar la moneda'));
+                    mostrarNotificacion(data.message || 'Error al cambiar la moneda', 'danger');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error al cambiar la moneda');
-            })
-            .finally(() => {
+                mostrarNotificacion('Error al cambiar la moneda', 'danger');
                 button.innerHTML = originalText;
                 button.disabled = false;
             });
         }
+
+        // Confirmar cambio de moneda (con pérdida del cupón)
+        function confirmarCambioMoneda() {
+            if (!pendingCurrencyChange) return;
+
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('confirmarCambioMonedaModal'));
+            modal.hide();
+
+            // Mostrar loading en el botón original
+            if (pendingButton) {
+                pendingButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                pendingButton.disabled = true;
+            }
+
+            // Enviar solicitud con confirmación
+            fetch('/cambiar-moneda', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    currency: pendingCurrencyChange,
+                    confirmar: true
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion(data.message, 'warning');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    mostrarNotificacion(data.message || 'Error al cambiar la moneda', 'danger');
+                    if (pendingButton) {
+                        pendingButton.innerHTML = pendingButtonOriginalText;
+                        pendingButton.disabled = false;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mostrarNotificacion('Error al cambiar la moneda', 'danger');
+                if (pendingButton) {
+                    pendingButton.innerHTML = pendingButtonOriginalText;
+                    pendingButton.disabled = false;
+                }
+            })
+            .finally(() => {
+                pendingCurrencyChange = null;
+                pendingButton = null;
+                pendingButtonOriginalText = '';
+            });
+        }
+
+        // Cancelar cambio de moneda
+        function cancelarCambioMoneda() {
+            // Limpiar variables pendientes
+            pendingCurrencyChange = null;
+            if (pendingButton) {
+                pendingButton.innerHTML = pendingButtonOriginalText;
+                pendingButton.disabled = false;
+            }
+            pendingButton = null;
+            pendingButtonOriginalText = '';
+
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('confirmarCambioMonedaModal'));
+            if (modal) modal.hide();
+        }
+
+        // Función para mostrar notificaciones flotantes
+        function mostrarNotificacion(mensaje, tipo = 'success') {
+            const existingNotification = document.querySelector('.custom-notification');
+            if (existingNotification) existingNotification.remove();
+
+            const notification = document.createElement('div');
+            notification.className = `custom-notification alert alert-${tipo} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+            notification.style.zIndex = '9999';
+            notification.style.minWidth = '300px';
+            notification.style.maxWidth = '500px';
+            notification.style.backgroundColor = tipo === 'warning' ? '#fff3cd' : (tipo === 'danger' ? '#f8d7da' : '#d1e7dd');
+            notification.style.borderLeft = `4px solid ${tipo === 'warning' ? '#ffc107' : (tipo === 'danger' ? '#dc3545' : '#0f5132')}`;
+            notification.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
+
+            const icon = tipo === 'warning' ? 'exclamation-triangle' : (tipo === 'danger' ? 'times-circle' : 'check-circle');
+
+            notification.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-${icon} me-2 ${tipo === 'warning' ? 'text-warning' : (tipo === 'danger' ? 'text-danger' : 'text-success')}"></i>
+                    <div class="flex-grow-1">
+                        <strong>${tipo === 'warning' ? '¡Atención!' : (tipo === 'danger' ? 'Error' : 'Éxito')}</strong>
+                        <div class="small">${mensaje}</div>
+                    </div>
+                    <button type="button" class="btn-close btn-sm" onclick="this.closest('.custom-notification').remove()"></button>
+                </div>
+            `;
+
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), tipo === 'warning' ? 5000 : 3000);
+        }
+
+        // Event listeners para los botones del modal
+        document.addEventListener('DOMContentLoaded', function() {
+            const confirmarBtn = document.getElementById('confirmarCambioBtn');
+            const cancelarBtn = document.getElementById('cancelarCambioBtn');
+
+            if (confirmarBtn) {
+                confirmarBtn.addEventListener('click', confirmarCambioMoneda);
+            }
+            if (cancelarBtn) {
+                cancelarBtn.addEventListener('click', cancelarCambioMoneda);
+            }
+        });
 
         // Cerrar dropdowns al hacer clic fuera
         document.addEventListener('click', function(e) {

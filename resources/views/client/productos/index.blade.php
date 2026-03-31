@@ -435,12 +435,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         <div class="mt-auto">
                             ${p.precios.tiene_descuento ? `
-                                <div class="d-flex align-items-baseline gap-2">
+                                <div class="d-flex align-items-baseline gap-2 flex-wrap">
                                     <span class="text-decoration-line-through text-muted small">${p.precios.original_formateado}</span>
                                     <span class="h5 mb-0 text-success fw-bold">${p.precios.con_descuento_formateado}</span>
+                                    <span class="badge bg-light text-dark">${p.precios.moneda.codigo}</span>
                                 </div>
                             ` : `
-                                <span class="h5 mb-0 text-success fw-bold">${p.precios.original_formateado}</span>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <span class="h5 mb-0 text-success fw-bold">${p.precios.original_formateado}</span>
+                                    <span class="badge bg-light text-dark">${p.precios.moneda.codigo}</span>
+                                </div>
                             `}
 
                             <div class="mt-1">

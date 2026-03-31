@@ -219,28 +219,6 @@
                 </div>
             </div>
 
-            <!-- Selector de moneda rápido (opcional) -->
-            @if(isset($monedasDisponibles) && $monedasDisponibles->count() > 1)
-            <div class="card shadow-sm border-0 mt-4">
-                <div class="card-header bg-success text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-money-bill-wave me-2"></i>
-                        Cambiar moneda
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach($monedasDisponibles as $moneda)
-                            <button class="btn btn-sm {{ $monedaActual && $monedaActual->codigo_iso == $moneda->codigo_iso ? 'btn-success' : 'btn-outline-success' }}"
-                                    onclick="cambiarMoneda('{{ $moneda->codigo_iso }}')">
-                                {{ $moneda->simbolo }} {{ $moneda->codigo_iso }}
-                            </button>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-            @endif
-
             <!-- Medios de pago -->
             <div class="card shadow-sm border-0 mt-4">
                 <div class="card-header bg-success text-white">
@@ -292,9 +270,8 @@
         </div>
     </div>
 </div>
-@endsection
 
-@push('scripts')
+
 <script>
 // Función para obtener el token CSRF (reutilizando la del carrito.js)
 function getCsrfToken() {
@@ -555,34 +532,6 @@ function mostrarCarritoVacio() {
     }
 }
 
-// Cambiar moneda
-window.cambiarMoneda = function(currencyCode) {
-    console.log('Cambiando moneda a:', currencyCode);
-
-    fetch('/cambiar-moneda', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': getCsrfToken()
-        },
-        body: JSON.stringify({ currency: currencyCode })
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Respuesta:', data);
-        if (data.success) {
-            // Recargar la página para actualizar todos los precios
-            location.reload();
-        } else {
-            window.mostrarNotificacion?.('Error al cambiar la moneda', 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        window.mostrarNotificacion?.('Error al cambiar la moneda', 'danger');
-    });
-};
-
 // Proceder al pago con verificación de login
 window.procederAlPago = function() {
     @auth('client')
@@ -636,4 +585,4 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Elementos encontrados:', elementos);
 });
 </script>
-@endpush
+@endsection

@@ -168,7 +168,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::get('/solicitudes-pedidos', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'index'])->name('solicitudes-pedidos.index');
             Route::get('/solicitudes-pedidos/{id}', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'show'])->name('solicitudes-pedidos.show')->middleware('admin:leer,solicitudes-pedidos');
             Route::post('/solicitudes-pedidos/{id}/estado', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'updateEstado'])->name('solicitudes-pedidos.update-estado')->middleware('admin:actualizar,solicitudes-pedidos');
-            Route::get('/solicitudes-pedidos/{id}/comprobante', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'verComprobante'])->name('solicitudes-pedidos.comprobante')->middleware('admin:leer,solicitudes-pedidos');
+            Route::get('/solicitudes-pedidos/comprobante/{hash}', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'verComprobante'])->name('solicitudes-pedidos.comprobante')->middleware('admin:leer,solicitudes-pedidos');
         });
 
         // Gestión de personal

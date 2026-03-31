@@ -27,11 +27,16 @@ class ComprasController extends Controller
         $cliente = $user->client;
         $clienteId = $cliente->id;
 
-        // Obtener las solicitudes del cliente con sus estados
+        // Obtener las solicitudes del cliente con sus relaciones
         $solicitudes = SolicitudPago::where('cliente_id', $clienteId)
-            ->with(['estados' => function($query) {
-                $query->orderBy('created_at', 'desc');
-            }, 'carrito'])
+            ->with([
+                'estados' => function($query) {
+                    $query->orderBy('created_at', 'desc');
+                },
+                'carrito',
+                'metodoPago',  // Agregar relación con método de pago
+                'moneda'       // Agregar relación con moneda
+            ])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -50,9 +55,17 @@ class ComprasController extends Controller
                     $query->orderBy('created_at', 'desc');
                 },
                 'carrito.productos.producto',
-                'carrito.productos.producto.categoria'
+                'carrito.productos.producto.categoria',
+                'metodoPago',      // Agregar relación con método de pago
+                'moneda',          // Agregar relación con moneda
+                'cupon'            // Agregar relación con cupón
             ])
             ->findOrFail($id);
+
+        // Decodificar info_pago si es necesario
+        if (is_string($solicitud->info_pago)) {
+            $solicitud->info_pago = json_decode($solicitud->info_pago, true);
+        }
 
         return view('client.compras.show', compact('solicitud', 'cliente'));
     }

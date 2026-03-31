@@ -37,10 +37,11 @@
                         <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead class="bg-light">
-                                    <tr>
+                                    32
                                         <th>N° Solicitud</th>
                                         <th>Fecha</th>
                                         <th>Método de Pago</th>
+                                        <th>Moneda</th>
                                         <th>Monto</th>
                                         <th>Productos</th>
                                         <th>Estado Actual</th>
@@ -51,21 +52,24 @@
                                     @foreach($solicitudes as $solicitud)
                                         @php
                                             $ultimoEstado = $solicitud->estados->first();
-                                            $estadoActual = $ultimoEstado ? $ultimoEstado->estado : 'Solicitado';
+                                            $estadoActual = $ultimoEstado ? $ultimoEstado->estado : 'solicitado';
 
                                             $claseEstado = match($estadoActual) {
-                                                'Aprobado' => 'success',
-                                                'Rechazado' => 'danger',
+                                                'aprobado' => 'success',
+                                                'rechazado' => 'danger',
                                                 default => 'warning'
                                             };
 
                                             $iconoEstado = match($estadoActual) {
-                                                'Aprobado' => 'fa-check-circle',
-                                                'Rechazado' => 'fa-times-circle',
+                                                'aprobado' => 'fa-check-circle',
+                                                'rechazado' => 'fa-times-circle',
                                                 default => 'fa-clock'
                                             };
 
                                             $totalProductos = $solicitud->carrito ? $solicitud->carrito->productos->sum('cantidad') : 0;
+                                            $metodoPago = $solicitud->metodoPago;
+                                            $moneda = $solicitud->moneda;
+                                            $simboloMoneda = $moneda ? $moneda->simbolo : 'S/';
                                         @endphp
                                         <tr>
                                             <td>
@@ -77,14 +81,27 @@
                                                 <small class="text-secondary">{{ $solicitud->created_at->diffForHumans() }}</small>
                                             </td>
                                             <td>
-                                                <span class="badge bg-secondary">
-                                                    <i class="fas fa-{{ $solicitud->metodo_pago == 'paypal' ? 'paypal' : 'mobile-alt' }} me-1"></i>
-                                                    {{ ucfirst($solicitud->metodo_pago) }}
-                                                </span>
+                                                @if($metodoPago)
+                                                    <span class="badge bg-secondary">
+                                                        <i class="fas {{ $metodoPago->icono_class ?? 'fa-credit-card' }} me-1"></i>
+                                                        {{ $metodoPago->nombre }}
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-secondary">No especificado</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($moneda)
+                                                    <span class="badge bg-info">
+                                                        {{ $moneda->codigo_iso }}
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-info">PEN</span>
+                                                @endif
                                             </td>
                                             <td>
                                                 <span class="fw-bold text-success">
-                                                    S/ {{ number_format($solicitud->monto, 2) }}
+                                                    {{ $simboloMoneda }} {{ number_format($solicitud->monto, 2) }}
                                                 </span>
                                             </td>
                                             <td class="text-center">

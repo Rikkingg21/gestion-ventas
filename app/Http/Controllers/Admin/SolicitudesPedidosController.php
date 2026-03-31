@@ -22,7 +22,8 @@ class SolicitudesPedidosController extends Controller
                 'estados' => function($q) {
                     $q->latest();
                 },
-                'moneda' // ← AGREGADO
+                'moneda',
+                'metodoPago'  // ← CORREGIDO: agregar relación con método de pago
             ])
             ->latest();
 
@@ -38,8 +39,11 @@ class SolicitudesPedidosController extends Controller
             });
         }
 
+        // CORREGIDO: filtrar por método de pago usando la relación
         if ($request->filled('metodo_pago')) {
-            $query->where('metodo_pago', $request->metodo_pago);
+            $query->whereHas('metodoPago', function($q) use ($request) {
+                $q->where('slug', $request->metodo_pago);
+            });
         }
 
         // Fechas por defecto: últimos 3 meses hasta fin de mes actual
@@ -123,7 +127,10 @@ class SolicitudesPedidosController extends Controller
                 ->values()
         ];
 
-        return view('admin.solicitudes-pedidos.index', compact('solicitudes', 'estadisticas', 'fechaDesde', 'fechaHasta'));
+        // Obtener métodos de pago para el filtro
+        $metodosPago = \App\Models\MetodoPago::where('is_active', true)->get();
+
+        return view('admin.solicitudes-pedidos.index', compact('solicitudes', 'estadisticas', 'fechaDesde', 'fechaHasta', 'metodosPago'));
     }
 
     public function show($id)
@@ -135,9 +142,15 @@ class SolicitudesPedidosController extends Controller
                     $q->orderBy('created_at', 'desc');
                 },
                 'moneda',
-                'cupon'
+                'cupon',
+                'metodoPago'
             ])
             ->findOrFail($id);
+
+        // Decodificar info_pago si es string
+        if (is_string($solicitud->info_pago)) {
+            $solicitud->info_pago = json_decode($solicitud->info_pago, true);
+        }
 
         return view('admin.solicitudes-pedidos.show', compact('solicitud'));
     }
@@ -172,12 +185,11 @@ class SolicitudesPedidosController extends Controller
                     : 'Solicitud rechazada por el administrador')
             ]);
 
-            // Si se rechaza, restaurar stock (importante para inventario)
+            // Si se rechaza, restaurar stock
             if ($request->estado == 'rechazado') {
                 foreach ($solicitud->carrito->productos as $item) {
                     $producto = $item->producto;
 
-                    // Solo restaurar stock para productos físicos
                     if ($producto->esFisico() && $producto->stock) {
                         $producto->stock->aumentarStock($item->cantidad);
 
@@ -189,11 +201,6 @@ class SolicitudesPedidosController extends Controller
                     }
                 }
             }
-
-            // NOTA: El envío de correos lo implementaremos después si es necesario
-            // if ($request->estado == 'aprobado' || $request->estado == 'rechazado') {
-            //     Aquí iría la lógica de envío de correos (futura implementación)
-            // }
 
             DB::commit();
 
@@ -217,14 +224,43 @@ class SolicitudesPedidosController extends Controller
         }
     }
 
-    public function verComprobante($id)
+    public function verComprobante($hash)
     {
-        $solicitud = SolicitudPago::findOrFail($id);
+        // Buscar la solicitud que contenga este archivo
+        $solicitud = SolicitudPago::where('imagen_1', 'LIKE', "%{$hash}%")
+            ->orWhere('imagen_2', 'LIKE', "%{$hash}%")
+            ->orWhere('imagen_3', 'LIKE', "%{$hash}%")
+            ->first();
 
-        if (!$solicitud->imagen_1) {
-            abort(404, 'No hay comprobante disponible');
+        if (!$solicitud) {
+            abort(404, 'Comprobante no encontrado');
         }
 
-        return response()->file(Storage::disk('public')->path($solicitud->imagen_1));
+        // Determinar qué imagen es
+        $imagenNumero = null;
+        if (str_contains($solicitud->imagen_1 ?? '', $hash)) {
+            $imagenNumero = 1;
+        } elseif (str_contains($solicitud->imagen_2 ?? '', $hash)) {
+            $imagenNumero = 2;
+        } elseif (str_contains($solicitud->imagen_3 ?? '', $hash)) {
+            $imagenNumero = 3;
+        }
+
+        if (!$imagenNumero) {
+            abort(404, 'Comprobante no encontrado');
+        }
+
+        $path = storage_path('app/public/' . $solicitud->{'imagen_' . $imagenNumero});
+
+        if (!file_exists($path)) {
+            abort(404, 'El archivo no existe');
+        }
+
+        // Devolver la imagen
+        return response()->file($path, [
+            'Content-Type' => mime_content_type($path),
+            'Content-Disposition' => 'inline; filename="comprobante_' . $solicitud->id . '.png"',
+            'Cache-Control' => 'private, max-age=86400'
+        ]);
     }
 }

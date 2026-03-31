@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Helpers\MetodoPagoHelper;
 use App\Models\Carrito;
 use App\Models\Cupon;
 use App\Models\CuponUsado;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use App\Helpers\GeoLocation;
 
 class PayController extends Controller
@@ -95,7 +97,9 @@ class PayController extends Controller
                     'id' => 0,
                     'codigo_iso' => 'USD',
                     'simbolo' => '$',
-                    'nombre' => 'Dólar Americano'
+                    'nombre' => 'Dólar Americano',
+                    'pais_code' => 'US',
+                    'tasa_cambio_usd' => 1
                 ];
             }
         }
@@ -202,6 +206,18 @@ class PayController extends Controller
             ->orderBy('codigo_iso')
             ->get();
 
+        // Obtener país para filtrar métodos de pago
+        $paisCode = null;
+        if ($cliente && $cliente->pais) {
+            $paisCode = $cliente->pais;
+        } elseif (isset($monedaActual->pais_code)) {
+            $paisCode = $monedaActual->pais_code;
+        }
+
+        // OBTENER MÉTODOS DE PAGO FILTRADOS POR MONEDA ACTUAL
+        // Usar el nuevo método que filtra por moneda_id
+        $metodosPagoData = MetodoPagoHelper::getMetodosPagoData($monedaActual, $paisCode);
+
         return view('client.checkout.index', compact(
             'itemsProcesados',
             'totales',
@@ -209,7 +225,8 @@ class PayController extends Controller
             'user',
             'cliente',
             'monedaActual',
-            'monedasDisponibles'
+            'monedasDisponibles',
+            'metodosPagoData'
         ));
     }
 
@@ -278,17 +295,7 @@ class PayController extends Controller
             ]);
         }
 
-        // Verificar si el cliente ya usó este cupón
-        $yaUsado = CuponUsado::where('cupon_id', $cupon->id)
-            ->where('cliente_id', $clienteId)
-            ->exists();
 
-        if ($yaUsado) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ya has utilizado este cupón anteriormente'
-            ]);
-        }
 
         // Obtener el carrito actual
         $carrito = Carrito::activo()
@@ -452,21 +459,124 @@ class PayController extends Controller
     public function procesarPago(Request $request)
     {
         try {
-            // Validaciones básicas
-            $request->validate([
-                'metodo_pago' => 'required|in:yape,plin,paypal',
-                'terminos' => 'required|accepted',
-                'comentarios' => 'nullable|string|max:500'
-            ]);
-
-            // Validar archivos según método de pago
-            if (in_array($request->metodo_pago, ['yape', 'plin'])) {
-                $request->validate([
-                    'comprobante_' . $request->metodo_pago => 'required|file|image|max:5120'
-                ]);
+            // 1. Verificar términos y condiciones
+            if (!$request->terminos || $request->terminos != '1') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debes aceptar los términos y condiciones'
+                ], 422);
             }
 
-            // Obtener usuario y cliente autenticado
+            // 2. Verificar método de pago
+            if (!$request->metodo_pago) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debes seleccionar un método de pago'
+                ], 422);
+            }
+
+            // 3. Obtener método de pago de la BD
+            $metodoPago = MetodoPagoHelper::getMetodoBySlug($request->metodo_pago);
+
+            if (!$metodoPago) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Método de pago no válido'
+                ], 400);
+            }
+
+            // 4. Validar campos requeridos según el método y guardar en info_pago
+            $infoPago = [];
+
+            // Campos requeridos por tipo de método
+            if ($metodoPago->tipo == 'billetera_digital') {
+                if (!$request->numero_referencia) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Debes ingresar el número de operación/referencia'
+                    ], 422);
+                }
+                $infoPago['numero_referencia'] = $request->numero_referencia;
+            }
+
+            if ($metodoPago->tipo == 'cuenta_bancaria') {
+                if (!$request->numero_operacion) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Debes ingresar el número de operación'
+                    ], 422);
+                }
+                $infoPago['numero_operacion'] = $request->numero_operacion;
+
+                if (!$request->banco_origen) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Debes ingresar el banco de origen'
+                    ], 422);
+                }
+                $infoPago['banco_origen'] = $request->banco_origen;
+            }
+
+            if ($metodoPago->tipo == 'transferencia_email') {
+                if (!$request->email_paypal) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Debes ingresar tu email de PayPal'
+                    ], 422);
+                }
+                $infoPago['email_paypal'] = $request->email_paypal;
+
+                if (!$request->id_transaccion) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Debes ingresar el ID de transacción'
+                    ], 422);
+                }
+                $infoPago['id_transaccion'] = $request->id_transaccion;
+            }
+            // 5. Guardar imágenes en storage/public con nombres aleatorios
+            $imagenes = [
+                'imagen_1' => null,
+                'imagen_2' => null,
+                'imagen_3' => null
+            ];
+
+            if ($request->hasFile('comprobante_1')) {
+                $file = $request->file('comprobante_1');
+                $extension = $file->getClientOriginalExtension();
+                // Generar nombre único con hash
+                $nombreUnico = Str::random(40) . '.' . $extension;
+                $path = $file->storeAs('comprobantes/' . $metodoPago->slug, $nombreUnico, 'public');
+                $imagenes['imagen_1'] = $path;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Debes adjuntar el comprobante de pago'
+                ], 422);
+            }
+
+            if ($request->hasFile('comprobante_2')) {
+                $file = $request->file('comprobante_2');
+                $extension = $file->getClientOriginalExtension();
+                $nombreUnico = Str::random(40) . '.' . $extension;
+                $path = $file->storeAs('comprobantes/' . $metodoPago->slug, $nombreUnico, 'public');
+                $imagenes['imagen_2'] = $path;
+            }
+
+            if ($request->hasFile('comprobante_3')) {
+                $file = $request->file('comprobante_3');
+                $extension = $file->getClientOriginalExtension();
+                $nombreUnico = Str::random(40) . '.' . $extension;
+                $path = $file->storeAs('comprobantes/' . $metodoPago->slug, $nombreUnico, 'public');
+                $imagenes['imagen_3'] = $path;
+            }
+
+            // 6. Agregar comentarios del cliente si existen (solo en info_pago, no en el estado)
+            if ($request->comentarios) {
+                $infoPago['comentarios_cliente'] = $request->comentarios;
+            }
+
+            // 7. Obtener usuario y carrito
             $user = Auth::guard('client')->user();
             if (!$user || !$user->client) {
                 return response()->json([
@@ -478,14 +588,8 @@ class PayController extends Controller
             $cliente = $user->client;
             $clienteId = $cliente->id;
 
-            // Obtener moneda actual
-            $monedaActual = $this->obtenerMonedaActual();
-
-            // Obtener carrito activo con productos
             $carrito = Carrito::activo()
-                ->with(['productos' => function($query) {
-                    $query->with(['producto.stock']);
-                }])
+                ->with(['productos.producto'])
                 ->where('cliente_id', $clienteId)
                 ->first();
 
@@ -493,124 +597,82 @@ class PayController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Tu carrito está vacío'
-                ]);
-            }
-
-            // --- VALIDAR STOCK ANTES DE PROCESAR ---
-            $erroresStock = [];
-            foreach ($carrito->productos as $item) {
-                $producto = $item->producto;
-
-                if ($producto->esFisico()) {
-                    $stockDisponible = $producto->stock->cantidad ?? 0;
-
-                    if ($stockDisponible < $item->cantidad) {
-                        $erroresStock[] = "El producto '{$producto->nombre}' solo tiene {$stockDisponible} unidades disponibles (solicitaste {$item->cantidad})";
-                    }
-                }
-            }
-
-            if (!empty($erroresStock)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Problemas con el stock:',
-                    'errors' => $erroresStock
                 ], 400);
             }
 
-            // Calcular totales base
+            // 8. Obtener moneda actual
+            $monedaActual = $this->obtenerMonedaActual();
+
+            // 9. Calcular total y descuento
             $subtotalActual = $monedaActual->codigo_iso == 'PEN'
                 ? $carrito->total_local
                 : $carrito->total_usd;
 
             $descuentoVerificado = 0;
-            $cuponAplicado = null;
             $cuponId = null;
+            $cuponAplicado = null;
 
-            // Verificar cupón si existe en sesión
             if (session()->has('cupon_aplicado')) {
                 $cuponAplicado = session('cupon_aplicado');
                 $cuponId = $cuponAplicado['id'];
 
-                // VALIDACIÓN: Comparar monedas
-                if (isset($cuponAplicado['moneda_id']) && !is_null($cuponAplicado['moneda_id'])) {
-                    if ($cuponAplicado['moneda_id'] != $monedaActual->id) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'El cupón no es válido para la moneda actual',
-                            'requires_action' => 'remove_coupon_or_change_currency'
-                        ], 400);
-                    }
-                }
-
-                // Calcular descuento verificado
                 if ($cuponAplicado['tipo'] == 'porcentaje') {
                     $descuentoVerificado = $subtotalActual * ($cuponAplicado['valor'] / 100);
                 } else {
-                    $descuentoVerificado = $cuponAplicado['valor'];
-                    $descuentoVerificado = min($descuentoVerificado, $subtotalActual);
+                    $descuentoVerificado = min($cuponAplicado['valor'], $subtotalActual);
                 }
+
+                // Guardar información del cupón en info_pago para histórico
+                $infoPago['cupon_aplicado'] = [
+                    'codigo' => $cuponAplicado['codigo'],
+                    'tipo' => $cuponAplicado['tipo'],
+                    'valor' => $cuponAplicado['valor'],
+                    'descuento' => $descuentoVerificado,
+                    'moneda' => $monedaActual->simbolo
+                ];
             }
 
-            // Calcular total final
             $totalFinal = $subtotalActual - $descuentoVerificado;
 
-            // --- 1. CREAR SOLICITUD DE PAGO ---
+            // 10. CREAR SOLICITUD DE PAGO
             $solicitudData = [
                 'cliente_id' => $clienteId,
                 'carrito_id' => $carrito->id,
                 'moneda_id' => $monedaActual->id,
                 'monto' => $totalFinal,
-                'metodo_pago' => $request->metodo_pago
+                'metodo_pago_id' => $metodoPago->id,
+                'info_pago' => json_encode($infoPago, JSON_UNESCAPED_UNICODE),
+                'imagen_1' => $imagenes['imagen_1'],
+                'imagen_2' => $imagenes['imagen_2'],
+                'imagen_3' => $imagenes['imagen_3']
             ];
 
-            // Agregar cupon_id solo si existe
             if ($cuponId) {
                 $solicitudData['cupon_id'] = $cuponId;
             }
 
-            // Procesar y guardar imagen del comprobante
-            if ($request->metodo_pago == 'yape' && $request->hasFile('comprobante_yape')) {
-                $path = $request->file('comprobante_yape')->store('comprobantes/yape', 'public');
-                $solicitudData['imagen_1'] = $path;
-            }
-
-            if ($request->metodo_pago == 'plin' && $request->hasFile('comprobante_plin')) {
-                $path = $request->file('comprobante_plin')->store('comprobantes/plin', 'public');
-                $solicitudData['imagen_1'] = $path;
-            }
-
-            // Crear la solicitud
             $solicitud = SolicitudPago::create($solicitudData);
 
-            // --- 2. REGISTRAR ESTADO INICIAL DE LA SOLICITUD ---
+            // 11. REGISTRAR ESTADO INICIAL (comentarios en NULL para que el admin agregue después)
             SolicitudPagoEstado::create([
                 'solicitud_pago_id' => $solicitud->id,
                 'estado' => 'solicitado',
-                'comentarios' => $request->comentarios ?? 'Solicitud de pago creada por el cliente'
+                'comentarios' => null  // El admin agregará comentarios cuando verifique el pago
             ]);
 
-            // --- 3. ACTUALIZAR STOCK DE PRODUCTOS FÍSICOS ---
+            // 12. ACTUALIZAR STOCK DE PRODUCTOS FÍSICOS
             foreach ($carrito->productos as $item) {
                 $producto = $item->producto;
-
                 if ($producto->esFisico() && $producto->stock) {
                     $producto->stock->reducirStock($item->cantidad);
-
-                    Log::info('Stock actualizado', [
-                        'producto' => $producto->nombre,
-                        'cantidad_comprada' => $item->cantidad,
-                        'stock_restante' => $producto->stock->cantidad,
-                        'solicitud_id' => $solicitud->id
-                    ]);
                 }
             }
 
-            // --- 4. ACTUALIZAR ESTADO DEL CARRITO ---
+            // 13. ACTUALIZAR ESTADO DEL CARRITO
             $carrito->update(['estado' => 'procesando']);
 
-            // --- 5. REGISTRAR USO DEL CUPÓN SI EXISTE ---
-            if ($cuponAplicado && $descuentoVerificado > 0) {
+            // 14. REGISTRAR USO DEL CUPÓN
+            if ($descuentoVerificado > 0 && $cuponAplicado) {
                 CuponUsado::create([
                     'cupon_id' => $cuponAplicado['id'],
                     'cliente_id' => $clienteId,
@@ -620,45 +682,36 @@ class PayController extends Controller
                     'descuento_obtenido_porcentaje' => $cuponAplicado['tipo'] == 'porcentaje' ? $cuponAplicado['valor'] : null
                 ]);
 
-                // Actualizar stock del cupón
                 $cupon = Cupon::find($cuponAplicado['id']);
                 if ($cupon) {
                     $cupon->stok_actual -= 1;
                     $cupon->save();
-
-                    Log::info('Stock de cupón actualizado', [
-                        'cupon' => $cupon->codigo,
-                        'stock_restante' => $cupon->stok_actual,
-                        'solicitud_id' => $solicitud->id
-                    ]);
                 }
 
-                // Limpiar cupón de sesión
                 session()->forget('cupon_aplicado');
             }
 
-            // Generar número de solicitud
+            // 15. Generar número de solicitud
             $numeroSolicitud = 'SOL-' . date('Ymd') . '-' . str_pad($solicitud->id, 6, '0', STR_PAD_LEFT);
+
+            $mensajeExito = 'Solicitud de pago recibida correctamente. ';
+            if ($metodoPago->tipo === 'transferencia_email') {
+                $mensajeExito .= 'Serás redirigido para completar el pago.';
+            } else {
+                $mensajeExito .= 'Revisaremos tu comprobante y te contactaremos pronto.';
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Solicitud de pago recibida correctamente',
+                'message' => $mensajeExito,
                 'numero_solicitud' => $numeroSolicitud,
                 'solicitud_id' => $solicitud->id
             ]);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error de validación',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
-            // CORREGIDO: No usar $request->all() cuando hay archivos
             Log::error('Error en procesarPago: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'solicitud_id' => $solicitud->id ?? null,
-                'metodo_pago' => $request->metodo_pago ?? null
+                'line' => $e->getLine()
             ]);
 
             return response()->json([

@@ -197,32 +197,6 @@
                 </div>
             </div>
 
-            <!-- Selector de moneda rápido (opcional) -->
-            @if(isset($monedasDisponibles) && $monedasDisponibles->count() > 1)
-            <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-money-bill-wave me-2"></i>
-                        Cambiar moneda de visualización
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach($monedasDisponibles as $moneda)
-                            <button class="btn btn-sm {{ $monedaActual && $monedaActual->codigo_iso == $moneda->codigo_iso ? 'btn-success' : 'btn-outline-success' }}"
-                                    onclick="cambiarMoneda('{{ $moneda->codigo_iso }}')">
-                                {{ $moneda->simbolo }} {{ $moneda->codigo_iso }}
-                            </button>
-                        @endforeach
-                    </div>
-                    <small class="text-secondary d-block mt-2">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Cambia la moneda para ver los precios en diferentes divisas.
-                    </small>
-                </div>
-            </div>
-            @endif
-
             <!-- Métodos de pago -->
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-success text-white">
@@ -237,113 +211,211 @@
 
                         <!-- Opciones de pago -->
                         <div class="row g-4 mb-4">
-                            <!-- Yape -->
-                            <div class="col-md-4">
-                                <div class="payment-option card h-100" onclick="selectPaymentMethod('yape', this)">
-                                    <div class="card-body text-center">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="radio" name="metodo_pago" id="yape" value="yape" required>
-                                        </div>
-                                        <img src="{{ asset('images/payment/yape-logo.png') }}" alt="Yape" style="height: 40px;" class="mb-2">
-                                        <h6 class="fw-bold">Yape</h6>
-                                        <p class="text-secondary small mb-0">Paga desde tu app Yape</p>
-                                    </div>
-                                </div>
-                            </div>
+                            @forelse($metodosPagoData as $metodo)
+                                <div class="col-md-4">
+                                    <div class="payment-option card h-100" onclick="selectPaymentMethod('{{ $metodo['slug'] }}', this)">
+                                        <div class="card-body text-center">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="radio"
+                                                    name="metodo_pago"
+                                                    id="{{ $metodo['slug'] }}"
+                                                    value="{{ $metodo['slug'] }}"
+                                                    required>
+                                            </div>
 
-                            <!-- Plin -->
-                            <div class="col-md-4">
-                                <div class="payment-option card h-100" onclick="selectPaymentMethod('plin', this)">
-                                    <div class="card-body text-center">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="radio" name="metodo_pago" id="plin" value="plin">
-                                        </div>
-                                        <img src="{{ asset('images/payment/plin-logo.png') }}" alt="Plin" style="height: 40px;" class="mb-2">
-                                        <h6 class="fw-bold">Plin</h6>
-                                        <p class="text-secondary small mb-0">Paga desde tu app Plin</p>
-                                    </div>
-                                </div>
-                            </div>
+                                            @if($metodo['imagen_url'])
+                                                <img src="{{ asset($metodo['imagen_url']) }}"
+                                                    alt="{{ $metodo['nombre'] }}"
+                                                    style="height: 40px;"
+                                                    class="mb-2">
+                                            @elseif($metodo['icono_class'])
+                                                <i class="{{ $metodo['icono_class'] }} fa-3x mb-2"></i>
+                                            @endif
 
-                            <!-- PayPal -->
-                            <div class="col-md-4">
-                                <div class="payment-option card h-100" onclick="selectPaymentMethod('paypal', this)">
-                                    <div class="card-body text-center">
-                                        <div class="form-check mb-2">
-                                            <input class="form-check-input" type="radio" name="metodo_pago" id="paypal" value="paypal">
+                                            <h6 class="fw-bold">{{ $metodo['nombre'] }}</h6>
+                                            <p class="text-secondary small mb-0">
+                                                Paga con {{ $metodo['nombre'] }}
+                                            </p>
                                         </div>
-                                        <i class="fab fa-cc-paypal fa-3x text-primary mb-2"></i>
-                                        <h6 class="fw-bold">PayPal</h6>
-                                        <p class="text-secondary small mb-0">Paga con tu cuenta PayPal</p>
                                     </div>
                                 </div>
-                            </div>
+                            @empty
+                                <div class="col-12">
+                                    <div class="alert alert-warning text-center">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        No hay métodos de pago disponibles
+                                    </div>
+                                </div>
+                            @endforelse
                         </div>
 
                         <!-- Sección de datos según método de pago -->
-                        <div id="yapeInfo" class="payment-info-section d-none">
-                            <div class="alert alert-info">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-mobile-alt fa-2x me-3"></i>
-                                    <div>
-                                        <h6 class="fw-bold mb-1">Datos para Yape</h6>
-                                        <p class="mb-0">Número: <strong>987 654 321</strong></p>
-                                        <p class="mb-0">Nombre: <strong>Tienda Mi Empresa S.A.C.</strong></p>
-                                        <p class="mb-0">Monto: <strong class="text-success">{{ $totales->total_actual_formateado }}</strong></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Adjunta el comprobante de Yape</label>
-                                <input type="file" class="form-control" name="comprobante_yape" accept="image/*" id="yapeFile">
-                                <small class="text-secondary">Captura de pantalla del comprobante (máx. 5MB)</small>
-                            </div>
-                        </div>
+                        @foreach($metodosPagoData as $metodo)
+                            <div id="{{ $metodo['slug'] }}Info" class="payment-info-section d-none">
+                                @php
+                                    $detalles = $metodo['detalles'];
+                                @endphp
 
-                        <div id="plinInfo" class="payment-info-section d-none">
-                            <div class="alert alert-info">
-                                <div class="d-flex align-items-center">
-                                    <i class="fas fa-mobile-alt fa-2x me-3"></i>
-                                    <div>
-                                        <h6 class="fw-bold mb-1">Datos para Plin</h6>
-                                        <p class="mb-0">Número: <strong>987 654 321</strong></p>
-                                        <p class="mb-0">Nombre: <strong>Tienda Mi Empresa S.A.C.</strong></p>
-                                        <p class="mb-0">Monto: <strong class="text-success">{{ $totales->total_actual_formateado }}</strong></p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Adjunta el comprobante de Plin</label>
-                                <input type="file" class="form-control" name="comprobante_plin" accept="image/*" id="plinFile">
-                                <small class="text-secondary">Captura de pantalla del comprobante (máx. 5MB)</small>
-                            </div>
-                        </div>
+                                <!-- Datos de la cuenta para pagar -->
+                                <div class="alert alert-info mb-4">
+                                    <div class="d-flex align-items-start">
+                                        <i class="fas {{ $metodo['icono_class'] ?? 'fa-credit-card' }} fa-2x me-3"></i>
+                                        <div class="w-100">
+                                            <h6 class="fw-bold mb-2">Datos para realizar el pago</h6>
 
-                        <div id="paypalInfo" class="payment-info-section d-none">
-                            <div class="alert alert-info">
-                                <div class="d-flex align-items-center">
-                                    <i class="fab fa-paypal fa-2x me-3"></i>
-                                    <div>
-                                        <h6 class="fw-bold mb-1">Datos para PayPal</h6>
-                                        <p class="mb-0">Email: <strong>pagos@tienda.com</strong></p>
-                                        <p class="mb-0">Monto: <strong class="text-success">{{ $totales->total_actual_formateado }}</strong></p>
-                                        <p class="mb-0">Serás redirigido a PayPal para completar el pago</p>
+                                            <!-- BILLETERA DIGITAL (Yape, Plin) -->
+                                            @if($metodo['tipo'] == 'billetera_digital')
+                                                <div class="row">
+                                                    @if(isset($detalles['numero']))
+                                                        <div class="col-md-6 mb-2">
+                                                            <small class="text-secondary">Número:</small><br>
+                                                            <strong class="fs-5">{{ $detalles['numero'] }}</strong>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="copiarTexto('{{ $detalles['numero'] }}')">
+                                                                <i class="fas fa-copy"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+                                                    @if(isset($detalles['titular']))
+                                                        <div class="col-md-6 mb-2">
+                                                            <small class="text-secondary">Titular:</small><br>
+                                                            <strong>{{ $detalles['titular'] }}</strong>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @endif
+
+                                            <!-- CUENTA BANCARIA (BCP, Interbank, BBVA) -->
+                                            @if($metodo['tipo'] == 'cuenta_bancaria')
+                                                <div class="row">
+                                                    @if(isset($detalles['banco']))
+                                                        <div class="col-md-12 mb-2">
+                                                            <small class="text-secondary">Banco:</small><br>
+                                                            <strong>{{ $detalles['banco'] }}</strong>
+                                                        </div>
+                                                    @endif
+                                                    @if(isset($detalles['n_cuenta']))
+                                                        <div class="col-md-6 mb-2">
+                                                            <small class="text-secondary">Número de cuenta:</small><br>
+                                                            <strong class="fs-5">{{ $detalles['n_cuenta'] }}</strong>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="copiarTexto('{{ $detalles['n_cuenta'] }}')">
+                                                                <i class="fas fa-copy"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+                                                    @if(isset($detalles['cci']))
+                                                        <div class="col-md-6 mb-2">
+                                                            <small class="text-secondary">CCI:</small><br>
+                                                            <strong class="fs-6">{{ $detalles['cci'] }}</strong>
+                                                            <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="copiarTexto('{{ $detalles['cci'] }}')">
+                                                                <i class="fas fa-copy"></i>
+                                                            </button>
+                                                        </div>
+                                                    @endif
+                                                    @if(isset($detalles['titular']))
+                                                        <div class="col-md-12 mb-2">
+                                                            <small class="text-secondary">Titular:</small><br>
+                                                            <strong>{{ $detalles['titular'] }}</strong>
+                                                        </div>
+                                                    @endif
+                                                    @if(isset($detalles['tipo_cuenta']))
+                                                        <div class="col-md-12 mb-2">
+                                                            <small class="text-secondary">Tipo de cuenta:</small><br>
+                                                            <span class="badge bg-success">{{ $detalles['tipo_cuenta'] }}</span>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @endif
+
+                                            <!-- TRANSFERENCIA POR EMAIL (PayPal) -->
+                                            @if($metodo['tipo'] == 'transferencia_email')
+                                                @if(isset($detalles['email']))
+                                                    <div class="mb-2">
+                                                        <small class="text-secondary">Email para enviar el pago:</small><br>
+                                                        <strong class="fs-5">{{ $detalles['email'] }}</strong>
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2" onclick="copiarTexto('{{ $detalles['email'] }}')">
+                                                            <i class="fas fa-copy"></i>
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                                @if(isset($detalles['instrucciones']))
+                                                    <div class="mt-2">
+                                                        <small class="text-secondary">Instrucciones:</small><br>
+                                                        <span class="text-muted">{{ $detalles['instrucciones'] }}</span>
+                                                    </div>
+                                                @endif
+                                            @endif
+
+                                            <!-- MONTO A PAGAR (todos los métodos) -->
+                                            <div class="mt-3 pt-2 border-top">
+                                                <p class="mb-0 text-success">
+                                                    <i class="fas fa-money-bill-wave me-1"></i>
+                                                    <strong>Monto a pagar:</strong> {{ $totales->total_actual_formateado }}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
+
+                                <!-- Campos del formulario - TODOS los métodos tienen comprobantes -->
+                                <div class="campos-formulario">
+                                    <h6 class="fw-bold mb-3">Información del pago</h6>
+
+                                    @foreach($metodo['campos_formulario'] as $campo)
+                                        <div class="mb-3">
+                                            <label class="form-label">
+                                                {{ $campo['label'] }}
+                                                @if($campo['required'])
+                                                    <span class="text-danger">*</span>
+                                                @endif
+                                            </label>
+
+                                            @if($campo['tipo'] === 'file')
+                                                <input type="file"
+                                                    class="form-control"
+                                                    name="{{ $campo['nombre_campo'] }}"
+                                                    accept="{{ $campo['accept'] ?? 'image/*' }}"
+                                                    id="{{ $campo['nombre_campo'] }}"
+                                                    {{ $campo['required'] ? 'required' : '' }}>
+                                                @if(isset($campo['help_text']))
+                                                    <small class="text-secondary">{{ $campo['help_text'] }}</small>
+                                                @endif
+                                                @if(strpos($campo['nombre_campo'], 'comprobante') !== false)
+                                                    <div class="mt-2" id="preview-{{ $campo['nombre_campo'] }}"></div>
+                                                @endif
+                                            @elseif($campo['tipo'] === 'email')
+                                                <input type="email"
+                                                    class="form-control"
+                                                    name="{{ $campo['nombre_campo'] }}"
+                                                    placeholder="{{ $campo['placeholder'] ?? '' }}"
+                                                    id="{{ $campo['nombre_campo'] }}"
+                                                    {{ $campo['required'] ? 'required' : '' }}>
+                                            @else
+                                                <input type="text"
+                                                    class="form-control"
+                                                    name="{{ $campo['nombre_campo'] }}"
+                                                    placeholder="{{ $campo['placeholder'] ?? '' }}"
+                                                    id="{{ $campo['nombre_campo'] }}"
+                                                    {{ $campo['required'] ? 'required' : '' }}>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
+                        @endforeach
 
                         <!-- Observaciones adicionales -->
-                        <div class="mb-3">
+                        <div class="mb-3 mt-4">
                             <label class="form-label">Observaciones (opcional)</label>
-                            <textarea class="form-control" name="comentarios" rows="2" placeholder="Algún detalle adicional sobre tu compra..."></textarea>
+                            <textarea class="form-control" name="comentarios" rows="2"
+                                    placeholder="Algún detalle adicional sobre tu compra..."></textarea>
                         </div>
 
                         <!-- Términos y condiciones -->
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="terminos" id="terminos" value="1" required>
                             <label class="form-check-label" for="terminos">
-                                He leído y acepto los <a href="#" class="text-success">términos y condiciones</a> y la <a href="#" class="text-success">política de privacidad</a>
+                                He leído y acepto los <a href="#" class="text-success">términos y condiciones</a> y la
+                                <a href="#" class="text-success">política de privacidad</a>
                             </label>
                         </div>
                     </form>
@@ -513,34 +585,43 @@ let metodoPagoSeleccionado = null;
 let selectedElement = null;
 let cuponValido = true;
 
-// Función para cambiar moneda (usa la función global de carrito.js)
-function cambiarMoneda(currencyCode) {
-    if (typeof window.cambiarMoneda === 'function') {
-        window.cambiarMoneda(currencyCode);
-    } else {
-        console.error('Función cambiarMoneda no disponible');
-        fetch('/cambiar-moneda', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({ currency: currencyCode })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error al cambiar la moneda');
+function copiarTexto(texto, buttonElement) {
+    const btn = buttonElement || event?.currentTarget;
+
+    // Guardar el texto original del botón
+    const originalText = btn ? btn.innerHTML : '';
+
+    // Mostrar feedback visual
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.classList.add('btn-success');
+        btn.classList.remove('btn-outline-secondary');
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-secondary');
+        }, 1000);
+    }
+
+    // Copiar al portapapeles
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(() => {
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion('¡Copiado!', 'success');
             }
+        }).catch(err => {
+            console.error('Error al copiar:', err);
+            copiarTextoAlternativo(texto);
         });
+    } else {
+        copiarTextoAlternativo(texto);
     }
 }
 
-function selectPaymentMethod(metodo, element) {
+function selectPaymentMethod(metodoSlug, element) {
     // Actualizar radio button
-    document.getElementById(metodo).checked = true;
+    const radio = document.getElementById(metodoSlug);
+    if (radio) radio.checked = true;
 
     // Remover clase selected de todas las opciones
     document.querySelectorAll('.payment-option').forEach(opt => {
@@ -557,9 +638,12 @@ function selectPaymentMethod(metodo, element) {
     });
 
     // Mostrar la sección correspondiente
-    document.getElementById(metodo + 'Info').classList.remove('d-none');
+    const infoSection = document.getElementById(metodoSlug + 'Info');
+    if (infoSection) {
+        infoSection.classList.remove('d-none');
+    }
 
-    metodoPagoSeleccionado = metodo;
+    metodoPagoSeleccionado = metodoSlug;
 }
 
 function enviarSolicitudPago() {
@@ -571,6 +655,7 @@ function enviarSolicitudPago() {
         }
         return;
     }
+
     // Validar que se haya seleccionado un método de pago
     if (!metodoPagoSeleccionado) {
         if (typeof window.mostrarNotificacion === 'function') {
@@ -592,26 +677,83 @@ function enviarSolicitudPago() {
         return;
     }
 
-    // Validar archivo según método de pago
-    if (metodoPagoSeleccionado === 'yape' || metodoPagoSeleccionado === 'plin') {
-        const fileInput = document.getElementById(metodoPagoSeleccionado + 'File');
-        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            if (typeof window.mostrarNotificacion === 'function') {
-                window.mostrarNotificacion('Por favor adjunta el comprobante de ' + metodoPagoSeleccionado, 'warning');
-            } else {
-                alert('Por favor adjunta el comprobante de ' + metodoPagoSeleccionado);
-            }
-            return;
-        }
+    // Crear FormData para enviar archivos
+    const formData = new FormData();
 
-        // Validar tamaño del archivo (máx 5MB)
-        if (fileInput.files[0].size > 5 * 1024 * 1024) {
-            if (typeof window.mostrarNotificacion === 'function') {
-                window.mostrarNotificacion('El archivo no debe superar los 5MB', 'warning');
+    // Agregar el token CSRF
+    formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+
+    // Agregar el método de pago
+    formData.append('metodo_pago', metodoPagoSeleccionado);
+
+    // Agregar términos
+    formData.append('terminos', '1');
+
+    // Agregar comentarios si existen
+    const comentarios = document.querySelector('textarea[name="comentarios"]');
+    if (comentarios && comentarios.value) {
+        formData.append('comentarios', comentarios.value);
+    }
+
+    // Buscar la sección del método seleccionado y agregar todos sus campos
+    const infoSection = document.getElementById(metodoPagoSeleccionado + 'Info');
+    if (infoSection) {
+        // Buscar todos los inputs dentro de la sección (text, email, file, etc)
+        const inputs = infoSection.querySelectorAll('input, textarea');
+
+        inputs.forEach(input => {
+            if (input.type === 'file') {
+                // Para archivos, agregar si hay archivo seleccionado
+                if (input.files && input.files.length > 0) {
+                    formData.append(input.name, input.files[0]);
+                    console.log('Archivo agregado:', input.name, input.files[0].name);
+                } else if (input.hasAttribute('required')) {
+                    // Si es requerido y no hay archivo, mostrar error
+                    const label = input.closest('.mb-3')?.querySelector('.form-label')?.innerText || 'Archivo';
+                    if (typeof window.mostrarNotificacion === 'function') {
+                        window.mostrarNotificacion(`${label} es obligatorio`, 'warning');
+                    } else {
+                        alert(`${label} es obligatorio`);
+                    }
+                    return;
+                }
             } else {
-                alert('El archivo no debe superar los 5MB');
+                // Para campos de texto, email, etc.
+                if (input.value) {
+                    formData.append(input.name, input.value);
+                } else if (input.hasAttribute('required')) {
+                    // Si es requerido y está vacío, mostrar error
+                    const label = input.closest('.mb-3')?.querySelector('.form-label')?.innerText || input.name;
+                    if (typeof window.mostrarNotificacion === 'function') {
+                        window.mostrarNotificacion(`${label} es obligatorio`, 'warning');
+                    } else {
+                        alert(`${label} es obligatorio`);
+                    }
+                    return;
+                }
             }
-            return;
+        });
+    } else {
+        console.error('No se encontró la sección del método:', metodoPagoSeleccionado + 'Info');
+        if (typeof window.mostrarNotificacion === 'function') {
+            window.mostrarNotificacion('Error al cargar los datos del método de pago', 'danger');
+        }
+        return;
+    }
+
+    // Agregar el cupón aplicado (si existe)
+    @if(isset($totales->cupon_aplicado))
+        formData.append('cupon_aplicado', '{{ $totales->cupon_aplicado['codigo'] ?? '' }}');
+        formData.append('descuento_aplicado', {{ $totales->descuento_aplicado ?? 0 }});
+    @endif
+
+    // DEBUG: Mostrar qué se está enviando
+    console.log('=== DATOS A ENVIAR ===');
+    for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+            console.log(pair[0], 'File:', pair[1].name, pair[1].size);
+        } else {
+            console.log(pair[0], pair[1]);
         }
     }
 
@@ -620,16 +762,6 @@ function enviarSolicitudPago() {
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="loader me-2"></span>Procesando...';
-
-    // Crear FormData para enviar archivos
-    const formData = new FormData(document.getElementById('paymentForm'));
-    formData.append('metodo_pago', metodoPagoSeleccionado);
-
-    // Agregar el cupón aplicado (si existe)
-    @if(isset($totales->cupon_aplicado))
-        formData.append('cupon_aplicado', '{{ $totales->cupon_aplicado['codigo'] ?? '' }}');
-        formData.append('descuento_aplicado', {{ $totales->descuento_aplicado ?? 0 }});
-    @endif
 
     fetch('{{ route("checkout.procesar") }}', {
         method: 'POST',
@@ -642,57 +774,31 @@ function enviarSolicitudPago() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Mostrar modal de confirmación
             const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
-
             const modalMessage = document.getElementById('modalMessage');
             if (modalMessage) {
                 modalMessage.textContent = data.message;
             }
-
             modal.show();
             btn.disabled = true;
         } else {
-            // Restaurar botón
             btn.disabled = false;
             btn.innerHTML = originalText;
 
-            // Mostrar mensaje de error específico
             if (typeof window.mostrarNotificacion === 'function') {
                 window.mostrarNotificacion(data.message || 'Error al procesar la solicitud', 'danger');
             } else {
                 alert(data.message || 'Error al procesar la solicitud');
             }
 
-            // Si el error requiere acción específica del usuario
-            if (data.requires_action === 'remove_coupon_or_change_currency') {
-                // RESALTAR LA SECCIÓN DEL CUPÓN
-                const cuponSection = document.querySelector('.card:has(#cuponInput)');
-                if (cuponSection) {
-                    // Agregar efecto de resaltado
-                    cuponSection.classList.add('border', 'border-danger', 'shadow-lg');
-
-                    // Scroll suave hacia la sección
-                    cuponSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                    // Resaltar también el selector de moneda si existe
-                    const monedaSection = document.querySelector('.card:has(.gap-2 .btn-outline-success)');
-                    if (monedaSection) {
-                        monedaSection.classList.add('border', 'border-warning', 'shadow-sm');
-                    }
-
-                    // Quitar el resaltado después de 5 segundos
-                    setTimeout(() => {
-                        cuponSection.classList.remove('border-danger', 'shadow-lg');
-                        if (monedaSection) {
-                            monedaSection.classList.remove('border-warning', 'shadow-sm');
-                        }
-                    }, 5000);
+            if (data.errors) {
+                console.error('Errores de validación:', data.errors);
+                let mensajeErrores = '';
+                for (let campo in data.errors) {
+                    mensajeErrores += data.errors[campo].join(', ') + '\n';
                 }
-
-                // Mostrar un mensaje más específico
-                if (typeof window.mostrarNotificacion === 'function') {
-                    window.mostrarNotificacion('ACCION REQUERIDA: El cupón no es válido para esta moneda. Por favor, cambia de moneda o quita el cupón.', 'warning', 8000);
+                if (mensajeErrores && typeof window.mostrarNotificacion === 'function') {
+                    window.mostrarNotificacion(mensajeErrores, 'danger');
                 }
             }
         }
@@ -703,7 +809,7 @@ function enviarSolicitudPago() {
         btn.innerHTML = originalText;
 
         if (typeof window.mostrarNotificacion === 'function') {
-            window.mostrarNotificacion('Error al procesar la solicitud', 'danger');
+            window.mostrarNotificacion('Error al procesar la solicitud: ' + error.message, 'danger');
         } else {
             alert('Error al procesar la solicitud');
         }

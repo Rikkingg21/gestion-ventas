@@ -33,13 +33,13 @@
                             @foreach($solicitud->estados as $estado)
                                 @php
                                     $claseEstado = match($estado->estado) {
-                                        'Aprobado' => 'success',
-                                        'Rechazado' => 'danger',
+                                        'aprobado' => 'success',
+                                        'rechazado' => 'danger',
                                         default => 'warning'
                                     };
                                     $iconoEstado = match($estado->estado) {
-                                        'Aprobado' => 'fa-check-circle',
-                                        'Rechazado' => 'fa-times-circle',
+                                        'aprobado' => 'fa-check-circle',
+                                        'rechazado' => 'fa-times-circle',
                                         default => 'fa-clock'
                                     };
                                 @endphp
@@ -91,7 +91,7 @@
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
                                 <thead class="bg-light">
-                                    <tr>
+                                    32
                                         <th>Producto</th>
                                         <th class="text-center">Tipo</th>
                                         <th class="text-center">Cantidad</th>
@@ -101,6 +101,10 @@
                                 </thead>
                                 <tbody>
                                     @foreach($solicitud->carrito->productos as $item)
+                                        @php
+                                            $moneda = $solicitud->moneda;
+                                            $simboloMoneda = $moneda ? $moneda->simbolo : 'S/';
+                                        @endphp
                                         <tr>
                                             <td>
                                                 <div class="d-flex align-items-center">
@@ -120,20 +124,73 @@
                                             </td>
                                             <td class="text-center">{{ $item->cantidad }}</td>
                                             <td class="text-center">
-                                                S/ {{ number_format($item->precio_adquirido_local, 2) }}
+                                                {{ $simboloMoneda }} {{ number_format($item->precio_adquirido_local, 2) }}
                                                 @if($item->aplica_descuento)
                                                     <br>
                                                     <small class="text-success">-{{ $item->porcentaje_descuento }}%</small>
                                                 @endif
                                             </td>
                                             <td class="text-center fw-bold text-success">
-                                                S/ {{ number_format($item->subtotal_local, 2) }}
+                                                {{ $simboloMoneda }} {{ number_format($item->subtotal_local, 2) }}
                                             </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            @endif
+
+            <!-- Información adicional del pago (si existe) -->
+            @if(!empty($solicitud->info_pago))
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Información Adicional del Pago
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @foreach($solicitud->info_pago as $key => $value)
+                            @if($key != 'cupon_aplicado' && $key != 'comentarios_cliente')
+                                <div class="row mb-2">
+                                    <div class="col-md-4 text-secondary">
+                                        {{ ucfirst(str_replace('_', ' ', $key)) }}:
+                                    </div>
+                                    <div class="col-md-8">
+                                        <strong>{{ $value }}</strong>
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach
+
+                        @if(isset($solicitud->info_pago['comentarios_cliente']))
+                            <div class="row mb-2">
+                                <div class="col-md-4 text-secondary">
+                                    Comentarios del cliente:
+                                </div>
+                                <div class="col-md-8">
+                                    <em>{{ $solicitud->info_pago['comentarios_cliente'] }}</em>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if(isset($solicitud->info_pago['cupon_aplicado']))
+                            <div class="row mt-3 pt-2 border-top">
+                                <div class="col-md-4 text-success">
+                                    Cupón aplicado:
+                                </div>
+                                <div class="col-md-8">
+                                    <span class="badge bg-success">
+                                        {{ $solicitud->info_pago['cupon_aplicado']['codigo'] }}
+                                    </span>
+                                    <span class="text-secondary ms-2">
+                                        ({{ $solicitud->info_pago['cupon_aplicado']['descuento'] }} {{ $solicitud->moneda->simbolo ?? 'S/' }} de descuento)
+                                    </span>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @endif
@@ -160,30 +217,53 @@
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Método de pago:</span>
-                        <span class="badge bg-secondary">{{ ucfirst($solicitud->metodo_pago) }}</span>
+                        @php $metodoPago = $solicitud->metodoPago; @endphp
+                        <span class="badge bg-secondary">
+                            <i class="fas {{ $metodoPago->icono_class ?? 'fa-credit-card' }} me-1"></i>
+                            {{ $metodoPago->nombre ?? 'No especificado' }}
+                        </span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary">Moneda:</span>
+                        <span class="badge bg-info">{{ $solicitud->moneda->codigo_iso ?? 'PEN' }}</span>
                     </div>
 
                     <hr>
 
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Subtotal:</span>
-                        <span>S/ {{ number_format($solicitud->carrito->total_local ?? 0, 2) }}</span>
+                        <span>{{ $solicitud->moneda->simbolo ?? 'S/' }} {{ number_format($solicitud->carrito->total_local ?? 0, 2) }}</span>
                     </div>
+
+                    @if(isset($solicitud->info_pago['cupon_aplicado']))
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span class="text-secondary">Descuento:</span>
+                            <span>-{{ $solicitud->moneda->simbolo ?? 'S/' }} {{ number_format($solicitud->info_pago['cupon_aplicado']['descuento'], 2) }}</span>
+                        </div>
+                    @endif
 
                     <hr>
 
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fw-bold fs-5">Total:</span>
-                        <span class="fw-bold fs-5 text-success">S/ {{ number_format($solicitud->monto, 2) }}</span>
+                        <span class="fw-bold fs-5 text-success">{{ $solicitud->moneda->simbolo ?? 'S/' }} {{ number_format($solicitud->monto, 2) }}</span>
                     </div>
 
-                    @if($solicitud->imagen_1)
+                    <!-- Comprobantes con hash -->
+                    @php
+                        $imagenes = $solicitud->getImagenes();
+                    @endphp
+                    @if(count($imagenes) > 0)
                         <div class="mt-3">
-                            <label class="form-label text-secondary fw-bold">Comprobante de pago:</label>
-                            <a href="{{ asset('storage/' . $solicitud->imagen_1) }}" target="_blank" class="btn btn-outline-success w-100">
-                                <i class="fas fa-image me-2"></i>
-                                Ver comprobante
-                            </a>
+                            <label class="form-label text-secondary fw-bold">Comprobante(s) de pago:</label>
+                            <div class="d-grid gap-2">
+                                @foreach($imagenes as $index => $imagenUrl)
+                                    <a href="{{ $imagenUrl }}" target="_blank" class="btn btn-outline-success">
+                                        <i class="fas fa-image me-2"></i>
+                                        Ver comprobante {{ $index + 1 }}
+                                    </a>
+                                @endforeach
+                            </div>
                         </div>
                     @endif
 
@@ -203,7 +283,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-1 fw-bold">{{ $cliente->nombre }} {{ $cliente->apellidos }}</p>
+                    <p class="mb-1 fw-bold">{{ $cliente->nombres }} {{ $cliente->apellido_paterno }} {{ $cliente->apellido_materno }}</p>
                     <p class="mb-1 text-secondary">{{ $cliente->email }}</p>
                     <p class="mb-0 text-secondary">{{ $cliente->telefono }}</p>
                 </div>
