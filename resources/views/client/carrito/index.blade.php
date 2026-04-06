@@ -1,3 +1,4 @@
+{{-- resources/views/client/carrito/index.blade.php --}}
 @extends('layouts.cliente.app')
 
 @section('title', 'Mi Carrito de Compras')
@@ -14,6 +15,17 @@
         </ol>
     </nav>
 
+    <!-- Alerta si la moneda no acepta pagos -->
+    @if(isset($aceptaPagos) && !$aceptaPagos && isset($monedaACobrar))
+        <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Información:</strong> La moneda {{ $monedaActual->nombre }} ({{ $monedaActual->simbolo }}) no acepta pagos directamente.
+            Los precios se muestran en <strong>{{ $monedaActual->nombre }} ({{ $monedaActual->simbolo }})</strong> para referencia,
+            pero el cobro se realizará en <strong>{{ $monedaACobrar->nombre }} ({{ $monedaACobrar->simbolo }})</strong>.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     <div class="row g-4">
         <!-- Columna principal: Items del carrito -->
         <div class="col-lg-8">
@@ -21,16 +33,23 @@
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-cart me-2"></i>
-                        <span id="cartHeaderTitle">Mi Carrito ({{ $totales->total_items }} productos)</span>
-                        @if(isset($moneda_actual))
+                        <span id="cartHeaderTitle">Mi Carrito
+                            @if(isset($totales) && $totales['total_items'] > 0)
+                                ({{ $totales['total_items'] }} productos)
+                            @else
+                                (0 productos)
+                            @endif
+                        </span>
+                        @if(isset($monedaActual))
                             <small class="ms-2">
                                 <span class="badge bg-light text-success">
-                                    {{ $moneda_actual->simbolo }} {{ $moneda_actual->codigo_iso }}
+                                    {{ $monedaActual->simbolo }} {{ $monedaActual->codigo_iso }}
                                 </span>
                             </small>
                         @endif
                     </h5>
-                    <button class="btn btn-light btn-sm" onclick="vaciarCarrito()" id="vaciarCarritoBtn" {{ $totales->total_items > 0 ? '' : 'style=display:none' }}>
+                    <button class="btn btn-light btn-sm" onclick="vaciarCarrito()" id="vaciarCarritoBtn"
+                            {{ isset($totales) && $totales['total_items'] > 0 ? '' : 'style=display:none' }}>
                         <i class="fas fa-trash-alt me-1"></i>
                         Vaciar carrito
                     </button>
@@ -38,7 +57,7 @@
                 <div class="card-body p-0">
                     <!-- Contenedor principal que se actualizará vía AJAX -->
                     <div id="carrito-contenido-principal">
-                        @if(isset($itemsProcesados) && $itemsProcesados->count() > 0)
+                        @if(isset($itemsProcesados) && count($itemsProcesados) > 0)
                             <div class="table-responsive">
                                 <table class="table table-hover align-middle mb-0">
                                     <thead class="bg-light">
@@ -52,14 +71,14 @@
                                     </thead>
                                     <tbody>
                                         @foreach($itemsProcesados as $item)
-                                            <tr data-item-id="{{ $item->id }}">
+                                            <tr data-item-id="{{ $item['id'] }}">
                                                 <td>
                                                     <div class="d-flex align-items-center">
                                                         <!-- Imagen del producto -->
                                                         <div class="flex-shrink-0 me-3">
-                                                            @if($item->imagen)
-                                                                <img src="{{ $item->imagen }}"
-                                                                     alt="{{ $item->nombre }}"
+                                                            @if($item['imagen'])
+                                                                <img src="{{ $item['imagen'] }}"
+                                                                     alt="{{ $item['nombre'] }}"
                                                                      style="width: 60px; height: 60px; object-fit: cover;"
                                                                      class="rounded">
                                                             @else
@@ -70,77 +89,84 @@
                                                             @endif
                                                         </div>
                                                         <div>
-                                                            <h6 class="fw-bold mb-1">{{ $item->nombre }}</h6>
+                                                            <h6 class="fw-bold mb-1">{{ $item['nombre'] }}</h6>
                                                             <small class="text-secondary">
-                                                                <span class="badge {{ $item->es_digital ? 'bg-info' : 'bg-primary' }} me-1">
-                                                                    <i class="fas {{ $item->es_digital ? 'fa-cloud' : 'fa-box' }} me-1"></i>
-                                                                    {{ ucfirst($item->tipo_producto) }}
+                                                                <span class="badge {{ $item['es_digital'] ? 'bg-info' : 'bg-primary' }} me-1">
+                                                                    <i class="fas {{ $item['es_digital'] ? 'fa-cloud' : 'fa-box' }} me-1"></i>
+                                                                    {{ ucfirst($item['tipo_producto']) }}
                                                                 </span>
-                                                                @if($item->es_fisico && $item->sku)
-                                                                    <span class="text-secondary">SKU: {{ $item->sku }}</span>
+                                                                @if($item['es_fisico'] && $item['sku'])
+                                                                    <span class="text-secondary">SKU: {{ $item['sku'] }}</span>
                                                                 @endif
                                                             </small>
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td class="text-center">
-                                                    @if($item->aplica_descuento && $item->porcentaje_descuento > 0)
+                                                    @if($item['aplica_descuento'] && $item['porcentaje_descuento'] > 0)
+                                                        @php
+                                                            $precioOriginal = $item['precio_unitario_local'] / (1 - ($item['porcentaje_descuento'] / 100));
+                                                        @endphp
                                                         <div>
                                                             <span class="text-decoration-line-through text-secondary small">
-                                                                {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_unitario_actual, 2) }}
+                                                                {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($precioOriginal, 2) }}
                                                             </span>
                                                             <br>
                                                             <span class="fw-bold text-success">
-                                                                {{ $item->precio_unitario_actual_formateado }}
+                                                                {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($item['precio_mostrar'], 2) }}
                                                             </span>
-                                                            <small class="badge bg-success ms-1">-{{ $item->porcentaje_descuento }}%</small>
+                                                            <small class="badge bg-success ms-1">-{{ $item['porcentaje_descuento'] }}%</small>
                                                         </div>
                                                     @else
-                                                        <span class="fw-bold">{{ $item->precio_unitario_actual_formateado }}</span>
+                                                        <span class="fw-bold">
+                                                            {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($item['precio_mostrar'], 2) }}
+                                                        </span>
                                                     @endif
 
-                                                    <!-- Mostrar precio en USD como referencia si es diferente -->
-                                                    @if($totales->moneda_actual->codigo_iso != 'USD' && $item->precio_unitario_usd)
+                                                    <!-- Mostrar precio en USD si no acepta pagos -->
+                                                    @if(isset($aceptaPagos) && !$aceptaPagos && $totales['moneda_actual']['codigo'] != 'USD')
                                                         <br>
-                                                        <small class="text-secondary">${{ number_format($item->precio_unitario_usd, 2) }} USD</small>
+                                                        <small class="text-secondary">
+                                                            ≈ ${{ number_format($item['precio_unitario_usd'], 2) }} USD
+                                                        </small>
                                                     @endif
                                                 </td>
                                                 <td class="text-center">
-                                                    @if($item->es_digital)
-                                                        <!-- Producto digital: cantidad fija -->
+                                                    @if($item['es_digital'])
                                                         <span class="badge bg-info">1 unidad (digital)</span>
                                                     @else
-                                                        <!-- Producto físico: controles de cantidad -->
                                                         <div class="d-flex align-items-center justify-content-center">
-                                                            <button class="btn btn-sm btn-outline-secondary"
-                                                                    onclick="actualizarCantidad({{ $item->id }}, {{ $item->cantidad - 1 }})"
-                                                                    {{ $item->cantidad <= 1 ? 'disabled' : '' }}>
+                                                            <button class="btn btn-sm btn-outline-secondary btn-decrementar"
+                                                                    onclick="actualizarCantidadItem({{ $item['id'] }}, {{ $item['cantidad'] - 1 }})"
+                                                                    {{ $item['cantidad'] <= 1 ? 'disabled' : '' }}>
                                                                 <i class="fas fa-minus"></i>
                                                             </button>
-                                                            <span class="mx-2 cantidad-valor">{{ $item->cantidad }}</span>
+                                                            <span class="mx-2 cantidad-valor">{{ $item['cantidad'] }}</span>
                                                             <button class="btn btn-sm btn-outline-secondary btn-incrementar"
-                                                                    onclick="actualizarCantidad({{ $item->id }}, {{ $item->cantidad + 1 }})"
-                                                                    {{ $item->es_fisico && $item->stock_disponible && $item->cantidad >= $item->stock_disponible ? 'disabled' : '' }}>
+                                                                    onclick="actualizarCantidadItem({{ $item['id'] }}, {{ $item['cantidad'] + 1 }})"
+                                                                    {{ $item['es_fisico'] && $item['stock_disponible'] && $item['cantidad'] >= $item['stock_disponible'] ? 'disabled' : '' }}>
                                                                 <i class="fas fa-plus"></i>
                                                             </button>
                                                         </div>
-                                                        @if($item->es_fisico && $item->stock_disponible)
+                                                        @if($item['es_fisico'] && $item['stock_disponible'])
                                                             <small class="text-secondary d-block mt-1 stock-info">
-                                                                {{ $item->stock_disponible }} disponibles
+                                                                {{ $item['stock_disponible'] }} disponibles
                                                             </small>
                                                         @endif
                                                     @endif
                                                 </td>
                                                 <td class="text-center fw-bold text-success subtotal-cell">
-                                                    {{ $item->subtotal_actual_formateado }}
-                                                    @if($totales->moneda_actual->codigo_iso != 'USD' && $item->subtotal_usd)
+                                                    {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($item['precio_mostrar'] * $item['cantidad'], 2) }}
+                                                    @if(isset($aceptaPagos) && !$aceptaPagos && $totales['moneda_actual']['codigo'] != 'USD')
                                                         <br>
-                                                        <small class="text-secondary">${{ number_format($item->subtotal_usd, 2) }} USD</small>
+                                                        <small class="text-secondary">
+                                                            ≈ ${{ number_format($item['precio_unitario_usd'] * $item['cantidad'], 2) }} USD
+                                                        </small>
                                                     @endif
                                                 </td>
                                                 <td class="text-center">
                                                     <button class="btn btn-link text-danger p-0"
-                                                            onclick="eliminarItem({{ $item->id }})"
+                                                            onclick="eliminarItemCarrito({{ $item['id'] }})"
                                                             title="Eliminar producto">
                                                         <i class="fas fa-trash-alt"></i>
                                                     </button>
@@ -173,17 +199,25 @@
                     <h5 class="mb-0">
                         <i class="fas fa-receipt me-2"></i>
                         Resumen de compra
-                        @if(isset($moneda_actual))
+                        @if(isset($aceptaPagos) && !$aceptaPagos && isset($monedaACobrar))
                             <small class="ms-2">
-                                {{ $moneda_actual->codigo_iso }}
+                                <i class="fas fa-info-circle"></i> Pago en {{ $monedaACobrar->codigo_iso }}
+                            </small>
+                        @elseif(isset($monedaActual))
+                            <small class="ms-2">
+                                {{ $monedaActual->codigo_iso }}
                             </small>
                         @endif
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between mb-2">
-                        <span class="text-secondary" id="subtotal-texto">Subtotal ({{ $totales->total_items }} productos):</span>
-                        <span class="fw-bold" id="subtotal-valor">{{ $totales->subtotal_actual_formateado ?? ''}}</span>
+                        <span class="text-secondary" id="subtotal-texto">
+                            Subtotal ({{ $totales['total_items'] ?? 0 }} productos):
+                        </span>
+                        <span class="fw-bold" id="subtotal-valor">
+                            {{ $totales['moneda_actual']['simbolo'] ?? '$' }}{{ number_format($totales['total_actual'] ?? 0, 2) }}
+                        </span>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Envío:</span>
@@ -192,20 +226,20 @@
                     <hr>
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fw-bold fs-5">Total:</span>
-                        <span class="fw-bold fs-5 text-success" id="total-valor">{{ $totales->total_actual_formateado ?? '' }}</span>
+                        <span class="fw-bold fs-5 text-success" id="total-valor">
+                            {{ $totales['moneda_actual']['simbolo'] ?? '$' }}{{ number_format($totales['total_actual'] ?? 0, 2) }}
+                        </span>
                     </div>
 
-                    <!-- Mostrar total en USD como referencia si es diferente -->
-                    @if(isset($totales->moneda_actual) && $totales->moneda_actual->codigo_iso != 'USD' && $totales->total_usd > 0)
-                        <p class="text-secondary small text-end" id="total-usd-ref">
-                            ≈ ${{ number_format($totales->total_usd, 2) }} USD
+                    <!-- Mostrar total en USD si no acepta pagos -->
+                    @if(isset($aceptaPagos) && !$aceptaPagos && isset($totales['total_usd']) && $totales['total_usd'] > 0)
+                        <p class="text-secondary small text-end" id="total-moneda-original">
+                            ≈ ${{ number_format($totales['total_usd'], 2) }} USD (monto a cobrar)
                         </p>
-                    @else
-                        <p class="text-secondary small text-end" id="total-usd-ref" style="display: none;"></p>
                     @endif
 
                     <div id="botones-accion">
-                        @if(isset($itemsProcesados) && $itemsProcesados->count() > 0)
+                        @if(isset($itemsProcesados) && count($itemsProcesados) > 0)
                             <button class="btn btn-success btn-lg w-100 mb-2" onclick="procederAlPago()" id="btn-pagar">
                                 <i class="fas fa-arrow-right me-2"></i>
                                 Proceder al pago
@@ -245,7 +279,7 @@
     </div>
 </div>
 
-<!-- Modal para solicitar login (sin cambios) -->
+<!-- Modal para solicitar login -->
 <div class="modal fade" id="loginRequiredModal" tabindex="-1" aria-labelledby="loginRequiredModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -271,9 +305,28 @@
     </div>
 </div>
 
-
 <script>
-// Función para obtener el token CSRF (reutilizando la del carrito.js)
+// Datos de moneda actual desde PHP
+const monedaActualData = @json($monedaActual ?? null);
+const aceptaPagos = @json($aceptaPagos ?? false);
+const monedaInfo = monedaActualData ? {
+    id: monedaActualData.id,
+    codigo: monedaActualData.codigo_iso,
+    simbolo: monedaActualData.simbolo,
+    nombre: monedaActualData.nombre,
+    tasa_cambio_usd: monedaActualData.tasa_cambio_usd || 1,
+    acepta_pagos: aceptaPagos
+} : { codigo: 'USD', simbolo: '$', nombre: 'Dólar Americano', tasa_cambio_usd: 1, acepta_pagos: true };
+
+// Función para formatear precio
+function formatearPrecioLocal(monto, moneda = monedaInfo) {
+    if (!moneda) {
+        return `$${parseFloat(monto || 0).toFixed(2)}`;
+    }
+    return `${moneda.simbolo}${parseFloat(monto || 0).toFixed(2)}`;
+}
+
+// Función para obtener token CSRF
 function getCsrfToken() {
     const meta = document.querySelector('meta[name="csrf-token"]');
     if (!meta) {
@@ -283,23 +336,13 @@ function getCsrfToken() {
     return meta.content;
 }
 
-// Función para formatear precio según la moneda (si no existe)
-if (typeof window.formatearPrecio !== 'function') {
-    window.formatearPrecio = function(monto, moneda) {
-        if (!moneda) {
-            return `$${parseFloat(monto || 0).toFixed(2)}`;
-        }
-        return `${moneda.simbolo}${parseFloat(monto || 0).toFixed(2)}`;
-    };
-}
-
 // Actualizar cantidad
-window.actualizarCantidad = function(itemId, nuevaCantidad) {
+function actualizarCantidadItem(itemId, nuevaCantidad) {
     if (nuevaCantidad < 1) return;
 
     const token = getCsrfToken();
     if (!token) {
-        window.mostrarNotificacion?.('Error de seguridad: Token CSRF no disponible', 'danger');
+        mostrarNotificacion('Error de seguridad: Token CSRF no disponible', 'danger');
         return;
     }
 
@@ -315,109 +358,24 @@ window.actualizarCantidad = function(itemId, nuevaCantidad) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Actualizar la UI con los datos recibidos
-            actualizarUI(itemId, nuevaCantidad, data);
-
-            // Actualizar sidebar si existe
-            if (typeof window.actualizarSidebarCarrito === 'function') {
-                window.actualizarSidebarCarrito();
-            }
-
-            window.mostrarNotificacion?.('Cantidad actualizada', 'success');
+            // Recargar la página para actualizar todos los datos
+            location.reload();
         } else {
-            window.mostrarNotificacion?.(data.error || 'Error al actualizar cantidad', 'danger');
+            mostrarNotificacion(data.error || 'Error al actualizar cantidad', 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.mostrarNotificacion?.('Error al actualizar cantidad', 'danger');
+        mostrarNotificacion('Error al actualizar cantidad', 'danger');
     });
-};
-
-// Función para actualizar la UI con los datos del servidor
-function actualizarUI(itemId, nuevaCantidad, data) {
-    // Buscar la fila del producto
-    const fila = document.querySelector(`tr[data-item-id="${itemId}"]`);
-    if (!fila) return;
-
-    // Actualizar el span de cantidad
-    const cantidadSpan = fila.querySelector('.cantidad-valor');
-    if (cantidadSpan) {
-        cantidadSpan.textContent = nuevaCantidad;
-    }
-
-    // Actualizar botones según estado
-    const btnMinus = fila.querySelector('.btn-outline-secondary:first-child');
-    const btnPlus = fila.querySelector('.btn-incrementar');
-
-    if (btnMinus) {
-        btnMinus.disabled = nuevaCantidad <= 1;
-    }
-
-    // Actualizar totales generales
-    if (data.total_items !== undefined) {
-        actualizarTotalesGenerales(data);
-    }
 }
 
-// Función para actualizar los totales generales
-function actualizarTotalesGenerales(data) {
-    console.log('Actualizando totales con:', data);
-
-    // Actualizar el contador en el header
-    const headerTitle = document.getElementById('cartHeaderTitle');
-    if (headerTitle && data.total_items !== undefined) {
-        headerTitle.textContent = `Mi Carrito (${data.total_items} productos)`;
-    }
-
-    // Actualizar el texto del subtotal
-    const subtotalTexto = document.getElementById('subtotal-texto');
-    if (subtotalTexto && data.total_items !== undefined) {
-        subtotalTexto.innerHTML = `Subtotal (${data.total_items} productos):`;
-    }
-
-    // Actualizar el valor del subtotal
-    const subtotalValor = document.getElementById('subtotal-valor');
-    if (subtotalValor && data.subtotal_actual_formateado) {
-        subtotalValor.textContent = data.subtotal_actual_formateado;
-    }
-
-    // Actualizar el valor del total
-    const totalValor = document.getElementById('total-valor');
-    if (totalValor && data.total_actual_formateado) {
-        totalValor.textContent = data.total_actual_formateado;
-    }
-
-    // Actualizar referencia USD
-    const usdRef = document.getElementById('total-usd-ref');
-    if (usdRef) {
-        if (data.total_usd) {
-            usdRef.innerHTML = `≈ $${parseFloat(data.total_usd).toFixed(2)} USD`;
-            usdRef.style.display = 'block';
-        } else {
-            usdRef.style.display = 'none';
-        }
-    }
-
-    // Mostrar/ocultar botón vaciar carrito
-    const vaciarBtn = document.getElementById('vaciarCarritoBtn');
-    if (vaciarBtn) {
-        vaciarBtn.style.display = data.total_items > 0 ? 'block' : 'none';
-    }
-
-    // Actualizar botones de acción si el carrito quedó vacío
-    if (data.total_items === 0) {
-        mostrarCarritoVacio();
-    }
-}
-
-// Eliminar item
-window.eliminarItem = function(itemId) {
+window.eliminarItemCarrito = function(itemId) {
     if (!confirm('¿Eliminar este producto del carrito?')) return;
 
     const token = getCsrfToken();
     if (!token) {
-        window.mostrarNotificacion?.('Error de seguridad: Token CSRF no disponible', 'danger');
+        mostrarNotificacion('Error de seguridad: Token CSRF no disponible', 'danger');
         return;
     }
 
@@ -431,46 +389,23 @@ window.eliminarItem = function(itemId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Eliminar la fila del DOM
-            const fila = document.querySelector(`tr[data-item-id="${itemId}"]`);
-            if (fila) {
-                fila.remove();
-            }
-
-            // Actualizar totales generales
-            if (data.totales) {
-                actualizarTotalesGenerales(data.totales);
-            }
-
-            // Verificar si el carrito quedó vacío
-            const tbody = document.querySelector('tbody');
-            if (!tbody || tbody.children.length === 0) {
-                mostrarCarritoVacio();
-            }
-
-            // Actualizar sidebar
-            if (typeof window.actualizarSidebarCarrito === 'function') {
-                window.actualizarSidebarCarrito();
-            }
-
-            window.mostrarNotificacion?.('Producto eliminado', 'success');
+            location.reload();
         } else {
-            window.mostrarNotificacion?.(data.error || 'Error al eliminar producto', 'danger');
+            mostrarNotificacion(data.error || 'Error al eliminar', 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.mostrarNotificacion?.('Error al eliminar producto', 'danger');
+        mostrarNotificacion('Error al eliminar producto', 'danger');
     });
 };
 
-// Vaciar carrito
 window.vaciarCarrito = function() {
-    if (!confirm('¿Vaciar todo el carrito?')) return;
+    if (!confirm('¿Vaciar todo el carrito? Esta acción no se puede deshacer.')) return;
 
     const token = getCsrfToken();
     if (!token) {
-        window.mostrarNotificacion?.('Error de seguridad: Token CSRF no disponible', 'danger');
+        mostrarNotificacion('Error de seguridad: Token CSRF no disponible', 'danger');
         return;
     }
 
@@ -478,61 +413,24 @@ window.vaciarCarrito = function() {
         method: 'POST',
         headers: {
             'X-CSRF-TOKEN': token,
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
         }
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            mostrarCarritoVacio();
-
-            // Actualizar sidebar
-            if (typeof window.actualizarSidebarCarrito === 'function') {
-                window.actualizarSidebarCarrito();
-            }
-
-            window.mostrarNotificacion?.('Carrito vaciado', 'success');
+            location.reload();
         } else {
-            window.mostrarNotificacion?.('Error al vaciar carrito', 'danger');
+            mostrarNotificacion('Error al vaciar carrito', 'danger');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        window.mostrarNotificacion?.('Error al vaciar carrito', 'danger');
+        mostrarNotificacion('Error al vaciar carrito', 'danger');
     });
 };
 
-// Función para mostrar el estado de carrito vacío
-function mostrarCarritoVacio() {
-    const contenedor = document.getElementById('carrito-contenido-principal');
-    if (contenedor) {
-        contenedor.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-shopping-cart fa-4x text-secondary mb-3"></i>
-                <h5>Tu carrito está vacío</h5>
-                <p class="text-secondary">¿No sabes qué comprar? ¡Miles de productos te esperan!</p>
-                <a href="{{ route('producto.index') }}" class="btn btn-success">
-                    <i class="fas fa-arrow-left me-2"></i>
-                    Ir a la tienda
-                </a>
-            </div>
-        `;
-    }
-
-    // Ocultar botón de vaciar carrito
-    const vaciarBtn = document.getElementById('vaciarCarritoBtn');
-    if (vaciarBtn) {
-        vaciarBtn.style.display = 'none';
-    }
-
-    // Ocultar botones de acción en el resumen
-    const botonesAccion = document.getElementById('botones-accion');
-    if (botonesAccion) {
-        botonesAccion.innerHTML = '';
-    }
-}
-
-// Proceder al pago con verificación de login
 window.procederAlPago = function() {
     @auth('client')
         window.location.href = '{{ route('checkout.index') }}';
@@ -542,47 +440,44 @@ window.procederAlPago = function() {
     @endauth
 };
 
-// Seguir comprando
 window.seguirComprando = function() {
     window.location.href = '{{ route('producto.index') }}';
 };
 
-// Función para mostrar notificaciones (si no existe globalmente)
-if (typeof window.mostrarNotificacion !== 'function') {
-    window.mostrarNotificacion = function(mensaje, tipo = 'success') {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${tipo} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
-        alertDiv.style.zIndex = '9999';
-        alertDiv.style.maxWidth = '300px';
-        alertDiv.innerHTML = `
-            <div class="d-flex align-items-center">
-                <i class="fas fa-${tipo === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
-                <small>${mensaje}</small>
-            </div>
-            <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
-        `;
-        document.body.appendChild(alertDiv);
+window.mostrarNotificacion = function(mensaje, tipo = 'success') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${tipo} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    alertDiv.style.zIndex = '9999';
+    alertDiv.style.maxWidth = '350px';
+    alertDiv.style.minWidth = '250px';
+    alertDiv.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${tipo === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
+            <div class="flex-grow-1">${mensaje}</div>
+            <button type="button" class="btn-close btn-sm ms-2" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.body.appendChild(alertDiv);
 
-        setTimeout(() => {
+    setTimeout(() => {
+        if (alertDiv && alertDiv.remove) {
             alertDiv.remove();
-        }, 3000);
-    };
-}
+        }
+    }, 3000);
+};
 
-// Verificar que tenemos todos los IDs necesarios
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Vista de carrito cargada');
+    console.log('Vista de carrito principal cargada');
+    console.log('Moneda actual:', monedaInfo);
+    console.log('Acepta pagos:', aceptaPagos);
 
-    // Verificar elementos importantes
-    const elementos = {
-        headerTitle: document.getElementById('cartHeaderTitle'),
-        subtotalTexto: document.getElementById('subtotal-texto'),
-        subtotalValor: document.getElementById('subtotal-valor'),
-        totalValor: document.getElementById('total-valor'),
-        vaciarBtn: document.getElementById('vaciarCarritoBtn')
-    };
+    @if(session('error'))
+        mostrarNotificacion('{{ session('error') }}', 'danger');
+    @endif
 
-    console.log('Elementos encontrados:', elementos);
+    @if(session('success'))
+        mostrarNotificacion('{{ session('success') }}', 'success');
+    @endif
 });
 </script>
 @endsection

@@ -186,7 +186,7 @@
 
         <!-- Columna derecha: Carrito Sidebar -->
         <div class="col-lg-3">
-            @include('client.partials.carrito-sidebar')
+            @include('client.partials.carrito-sidebar', ['carritoData' => $carritoData ?? null])
         </div>
     </div>
 </div>

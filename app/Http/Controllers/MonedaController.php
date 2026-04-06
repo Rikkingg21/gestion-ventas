@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\MonedaHelper;
 use App\Models\Cupon;
 use App\Models\Moneda;
+use App\Models\CarritoProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -13,7 +14,6 @@ class MonedaController extends Controller
     public function cambiar(Request $request)
     {
         try {
-            // Validar que la moneda exista y esté activa
             $request->validate([
                 'currency' => [
                     'required',
@@ -28,11 +28,10 @@ class MonedaController extends Controller
                 ]
             ]);
 
-            // Obtener la moneda completa
-            $moneda = MonedaHelper::getMonedaByCodigo($request->currency);
+            $nuevaMoneda = MonedaHelper::getMonedaByCodigo($request->currency);
             $monedaAnterior = MonedaHelper::getMonedaActual();
 
-            // Verificar si hay un cupón incompatible
+            // Verificar cupón incompatible
             $cuponIncompatible = null;
             $cuponInfo = null;
 
@@ -40,7 +39,7 @@ class MonedaController extends Controller
                 $cuponSesion = session('cupon_aplicado');
                 $cupon = Cupon::find($cuponSesion['id']);
 
-                if ($cupon && $cupon->moneda_id && $cupon->moneda_id != $moneda->id) {
+                if ($cupon && $cupon->moneda_id && $cupon->moneda_id != $nuevaMoneda->id) {
                     $monedaCupon = Moneda::find($cupon->moneda_id);
                     $nombreMonedaCupon = $monedaCupon ? $monedaCupon->nombre : 'otra moneda';
                     $simboloMonedaCupon = $monedaCupon ? $monedaCupon->simbolo : '';
@@ -53,49 +52,48 @@ class MonedaController extends Controller
                             ? "{$cupon->porcentaje_descuento}% de descuento"
                             : "{$simboloMonedaCupon} " . number_format($cupon->descuento_monto, 2),
                         'moneda_original' => $nombreMonedaCupon,
-                        'moneda_nueva' => $moneda->nombre,
-                        'moneda_nueva_codigo' => $moneda->codigo_iso
+                        'moneda_nueva' => $nuevaMoneda->nombre,
+                        'moneda_nueva_codigo' => $nuevaMoneda->codigo_iso
                     ];
                 }
             }
 
-            // Si hay cupón incompatible, preguntar antes de cambiar
             if ($cuponIncompatible && !$request->has('confirmar')) {
                 return response()->json([
                     'success' => false,
                     'requires_confirmation' => true,
                     'cupon_info' => $cuponInfo,
                     'new_currency' => [
-                        'codigo' => $moneda->codigo_iso,
-                        'simbolo' => $moneda->simbolo,
-                        'nombre' => $moneda->nombre
+                        'codigo' => $nuevaMoneda->codigo_iso,
+                        'simbolo' => $nuevaMoneda->simbolo,
+                        'nombre' => $nuevaMoneda->nombre
                     ]
                 ]);
             }
 
-            // Si llegamos aquí, es porque no hay cupón incompatible o el usuario confirmó
             if ($cuponIncompatible && $request->has('confirmar') && $request->confirmar === true) {
-                // Eliminar cupón de sesión
                 session()->forget('cupon_aplicado');
                 $mensajeCupon = " El cupón '{$cuponInfo['codigo']}' ({$cuponInfo['descuento']}) ha sido eliminado porque solo era válido para compras en {$cuponInfo['moneda_original']}.";
             } else {
                 $mensajeCupon = '';
             }
 
+            // ACTUALIZAR SOLO EL PRECIO LOCAL DEL CARRITO (NO EL USD)
+            $this->actualizarPrecioLocalCarrito($nuevaMoneda);
+
             // Guardar nueva moneda en sesión
             session([
                 'moneda_seleccionada' => $request->currency,
-                'moneda_id' => $moneda->id,
+                'moneda_id' => $nuevaMoneda->id,
                 'moneda_info' => [
-                    'id' => $moneda->id,
-                    'codigo' => $moneda->codigo_iso,
-                    'simbolo' => $moneda->simbolo,
-                    'nombre' => $moneda->nombre
+                    'id' => $nuevaMoneda->id,
+                    'codigo' => $nuevaMoneda->codigo_iso,
+                    'simbolo' => $nuevaMoneda->simbolo,
+                    'nombre' => $nuevaMoneda->nombre
                 ]
             ]);
 
-            // Construir mensaje de respuesta
-            $mensaje = "Moneda cambiada a {$moneda->nombre} ({$moneda->simbolo})";
+            $mensaje = "Moneda cambiada a {$nuevaMoneda->nombre} ({$nuevaMoneda->simbolo})";
             if ($mensajeCupon) {
                 $mensaje .= $mensajeCupon;
             }
@@ -106,10 +104,10 @@ class MonedaController extends Controller
                 'message_type' => $mensajeCupon ? 'warning' : 'success',
                 'currency' => $request->currency,
                 'moneda' => [
-                    'id' => $moneda->id,
-                    'codigo' => $moneda->codigo_iso,
-                    'simbolo' => $moneda->simbolo,
-                    'nombre' => $moneda->nombre
+                    'id' => $nuevaMoneda->id,
+                    'codigo' => $nuevaMoneda->codigo_iso,
+                    'simbolo' => $nuevaMoneda->simbolo,
+                    'nombre' => $nuevaMoneda->nombre
                 ],
                 'recargar' => true
             ]);
@@ -135,62 +133,48 @@ class MonedaController extends Controller
     }
 
     /**
-     * Método opcional para obtener la moneda actual
+     * Actualizar SOLO el precio local del carrito (precio_adquirido_local)
+     * El precio USD (precio_adquirido_usd) NO se modifica
      */
-    public function actual()
+    private function actualizarPrecioLocalCarrito($nuevaMoneda)
     {
         try {
-            $moneda = MonedaHelper::getMonedaActual();
+            $carrito = CarritoController::cargarCarrito();
 
-            return response()->json([
-                'success' => true,
-                'moneda' => [
-                    'id' => $moneda->id,
-                    'codigo' => $moneda->codigo_iso,
-                    'simbolo' => $moneda->simbolo,
-                    'nombre' => $moneda->nombre,
-                    'tasa_cambio_usd' => $moneda->tasa_cambio_usd ?? 1
-                ]
+            if (!$carrito || $carrito->estaVacio()) {
+                return;
+            }
+
+            foreach ($carrito->productos as $productoCarrito) {
+                $producto = $productoCarrito->producto;
+
+                if (!$producto) continue;
+
+                // Obtener el precio en la nueva moneda usando el precio USD como base
+                $precioInfo = MonedaHelper::getPrecioProductoEnMoneda($producto, $nuevaMoneda->id);
+
+                // ACTUALIZAR SOLO el precio local, el USD se mantiene
+                $productoCarrito->update([
+                    'precio_adquirido_local' => $precioInfo['precio_con_descuento']
+                ]);
+            }
+
+            // Actualizar la moneda del carrito
+            $carrito->update([
+                'moneda_id' => $nuevaMoneda->id
+            ]);
+
+            Log::info('Carrito actualizado a nueva moneda (solo precio local)', [
+                'carrito_id' => $carrito->id,
+                'moneda_id' => $nuevaMoneda->id,
+                'moneda_codigo' => $nuevaMoneda->codigo_iso
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al obtener moneda actual: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener moneda actual'
-            ], 500);
-        }
-    }
-
-    /**
-     * Método opcional para obtener todas las monedas disponibles
-     */
-    public function disponibles()
-    {
-        try {
-            $monedas = MonedaHelper::getMonedasActivas();
-
-            return response()->json([
-                'success' => true,
-                'monedas' => $monedas->map(function($moneda) {
-                    return [
-                        'id' => $moneda->id,
-                        'codigo' => $moneda->codigo_iso,
-                        'simbolo' => $moneda->simbolo,
-                        'nombre' => $moneda->nombre,
-                        'pais' => $moneda->pais
-                    ];
-                })
+            Log::error('Error al actualizar precio local del carrito: ' . $e->getMessage(), [
+                'moneda_id' => $nuevaMoneda->id,
+                'trace' => $e->getTraceAsString()
             ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error al obtener monedas disponibles: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al obtener monedas disponibles'
-            ], 500);
         }
     }
 }

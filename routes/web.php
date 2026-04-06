@@ -24,6 +24,7 @@ Route::post('/cambiar-moneda', [MonedaController::class, 'cambiar'])->name('camb
 
 // Rutas del carrito - TODAS USANDO POST para simplificar (o todas usando el método HTTP apropiado)
 Route::get('/carrito/ver', [CarritoController::class, 'verCarrito'])->name('carrito.ver');
+Route::get('/carrito/sidebar-data', [CarritoController::class, 'sidebarData'])->name('carrito.sidebar-data');
 Route::post('/carrito/agregar/{producto}', [CarritoController::class, 'agregarAlCarrito'])->name('carrito.agregar');
 Route::post('/carrito/actualizar-item/{item}', [CarritoController::class, 'actualizarCantidad'])->name('carrito.actualizar-item');
 Route::delete('/carrito/eliminar/{productoId}', [CarritoController::class, 'eliminarDelCarrito'])->name('carrito.eliminar');

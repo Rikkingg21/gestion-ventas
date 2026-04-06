@@ -141,7 +141,7 @@
 
         <!-- Columna derecha: Carrito (3 columnas) -->
         <div class="col-12 col-md-3 h-100 p-3 overflow-auto">
-            @include('client.partials.carrito-sidebar')
+            @include('client.partials.carrito-sidebar', ['carritoData' => $carritoData ?? null])
         </div>
     </div>
 </div>

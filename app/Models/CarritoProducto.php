@@ -35,14 +35,11 @@ class CarritoProducto extends Model
     /**
      * Relaciones
      */
-
-    // Relación con carrito
     public function carrito()
     {
         return $this->belongsTo(Carrito::class, 'carrito_id');
     }
 
-    // Relación con producto (sin foreign key explícita en BD)
     public function producto()
     {
         return $this->belongsTo(Producto::class, 'producto_id');
@@ -51,20 +48,16 @@ class CarritoProducto extends Model
     /**
      * Accesores
      */
-
-    // Obtener subtotal en USD
     public function getSubtotalUsdAttribute()
     {
         return $this->precio_adquirido_usd * $this->cantidad;
     }
 
-    // Obtener subtotal en moneda local
     public function getSubtotalLocalAttribute()
     {
         return $this->precio_adquirido_local * $this->cantidad;
     }
 
-    // Obtener precio original (sin descuento)
     public function getPrecioOriginalUsdAttribute()
     {
         if (!$this->aplica_descuento || !$this->porcentaje_descuento) {
@@ -83,7 +76,6 @@ class CarritoProducto extends Model
         return $this->precio_adquirido_local / (1 - ($this->porcentaje_descuento / 100));
     }
 
-    // Obtener descuento aplicado en USD
     public function getDescuentoUsdAttribute()
     {
         if (!$this->aplica_descuento || !$this->porcentaje_descuento) {
@@ -97,8 +89,6 @@ class CarritoProducto extends Model
     /**
      * Métodos útiles
      */
-
-    // Actualizar cantidad
     public function actualizarCantidad($nuevaCantidad)
     {
         if ($nuevaCantidad > 0) {
@@ -106,10 +96,18 @@ class CarritoProducto extends Model
             return $this->save();
         }
 
-        return $this->delete(); // Si cantidad es 0, eliminamos el item
+        // Si cantidad es 0, eliminar el registro usando SoftDeletes
+        return $this->delete();
     }
 
-    // Verificar si el producto tiene descuento aplicado
+    /**
+     * Eliminar permanentemente (override para usar SoftDeletes)
+     */
+    public function eliminarPermanentemente()
+    {
+        return $this->forceDelete();
+    }
+
     public function tieneDescuento()
     {
         return $this->aplica_descuento && $this->porcentaje_descuento > 0;

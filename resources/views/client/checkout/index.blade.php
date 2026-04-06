@@ -15,6 +15,17 @@
         </ol>
     </nav>
 
+    <!-- Alerta si la moneda no acepta pagos -->
+    @if(isset($aceptaPagos) && !$aceptaPagos && isset($monedaACobrar))
+        <div class="alert alert-warning alert-dismissible fade show mb-4" role="alert">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>Información:</strong> La moneda {{ $monedaActual->nombre }} ({{ $monedaActual->simbolo }}) no acepta pagos directamente.
+            Los precios se muestran en <strong>{{ $monedaActual->nombre }} ({{ $monedaActual->simbolo }})</strong> para referencia,
+            pero el cobro se realizará en <strong>{{ $monedaACobrar->nombre }} ({{ $monedaACobrar->simbolo }})</strong>.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     <div class="row g-4">
         <!-- Columna principal: Formulario de pago -->
         <div class="col-lg-8">
@@ -116,13 +127,20 @@
                                         <td class="text-center">{{ $item->cantidad }}</td>
                                         <td class="text-center">
                                             @if($item->aplica_descuento && $item->porcentaje_descuento > 0)
+                                                @php
+                                                    $precioOriginal = $item->precio_mostrar / (1 - ($item->porcentaje_descuento / 100));
+                                                @endphp
                                                 <span class="text-decoration-line-through text-secondary small me-1">
-                                                    {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_unitario_actual * (1 + $item->porcentaje_descuento/100), 2) }}
+                                                    {{ $totales->moneda_actual->simbolo }}{{ number_format($precioOriginal, 2) }}
                                                 </span>
                                                 <br>
-                                                <span class="fw-bold text-success">{{ $item->precio_unitario_actual_formateado }}</span>
+                                                <span class="fw-bold text-success">
+                                                    {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_mostrar, 2) }}
+                                                </span>
                                             @else
-                                                <span class="fw-bold">{{ $item->precio_unitario_actual_formateado }}</span>
+                                                <span class="fw-bold">
+                                                    {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_mostrar, 2) }}
+                                                </span>
                                             @endif
 
                                             @if($totales->moneda_actual->codigo_iso != 'USD')
@@ -133,11 +151,11 @@
                                             @endif
                                         </td>
                                         <td class="text-center fw-bold text-success">
-                                            {{ $item->subtotal_actual_formateado }}
+                                            {{ $totales->moneda_actual->simbolo }}{{ number_format($item->subtotal_mostrar, 2) }}
                                             @if($totales->moneda_actual->codigo_iso != 'USD')
                                                 <br>
                                                 <small class="text-secondary">
-                                                    ≈ ${{ number_format($item->subtotal_usd, 2) }} USD
+                                                    ≈ ${{ number_format($item->precio_unitario_usd * $item->cantidad, 2) }} USD
                                                 </small>
                                             @endif
                                         </td>
@@ -350,6 +368,10 @@
                                                 <p class="mb-0 text-success">
                                                     <i class="fas fa-money-bill-wave me-1"></i>
                                                     <strong>Monto a pagar:</strong> {{ $totales->total_actual_formateado }}
+                                                    @if(!$aceptaPagos && isset($monedaACobrar))
+                                                        <br>
+                                                        <small>(Se cobrará en {{ $monedaACobrar->simbolo }} {{ $monedaACobrar->codigo_iso }})</small>
+                                                    @endif
                                                 </p>
                                             </div>
                                         </div>
@@ -457,10 +479,17 @@
                         <span class="fw-bold fs-5 text-success">{{ $totales->total_actual_formateado }}</span>
                     </div>
 
-                    <!-- Mostrar total en USD como referencia -->
+                    <!-- Mostrar total en USD como referencia si la moneda actual no es USD -->
                     @if($totales->moneda_actual->codigo_iso != 'USD')
                         <p class="text-secondary small text-end mb-3">
                             ≈ ${{ number_format($totales->total_usd, 2) }} USD
+                            @if(!$aceptaPagos)
+                                <br>
+                                <span class="text-warning">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    Este es el monto que se cobrará
+                                </span>
+                            @endif
                         </p>
                     @endif
 
@@ -585,24 +614,7 @@ let metodoPagoSeleccionado = null;
 let selectedElement = null;
 let cuponValido = true;
 
-function copiarTexto(texto, buttonElement) {
-    const btn = buttonElement || event?.currentTarget;
-
-    // Guardar el texto original del botón
-    const originalText = btn ? btn.innerHTML : '';
-
-    // Mostrar feedback visual
-    if (btn) {
-        btn.innerHTML = '<i class="fas fa-check"></i>';
-        btn.classList.add('btn-success');
-        btn.classList.remove('btn-outline-secondary');
-        setTimeout(() => {
-            btn.innerHTML = originalText;
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 1000);
-    }
-
+function copiarTexto(texto) {
     // Copiar al portapapeles
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(texto).then(() => {
@@ -611,10 +623,10 @@ function copiarTexto(texto, buttonElement) {
             }
         }).catch(err => {
             console.error('Error al copiar:', err);
-            copiarTextoAlternativo(texto);
+            alert('Presiona Ctrl+C para copiar: ' + texto);
         });
     } else {
-        copiarTextoAlternativo(texto);
+        alert('Presiona Ctrl+C para copiar: ' + texto);
     }
 }
 
@@ -698,17 +710,13 @@ function enviarSolicitudPago() {
     // Buscar la sección del método seleccionado y agregar todos sus campos
     const infoSection = document.getElementById(metodoPagoSeleccionado + 'Info');
     if (infoSection) {
-        // Buscar todos los inputs dentro de la sección (text, email, file, etc)
         const inputs = infoSection.querySelectorAll('input, textarea');
 
-        inputs.forEach(input => {
+        for (const input of inputs) {
             if (input.type === 'file') {
-                // Para archivos, agregar si hay archivo seleccionado
                 if (input.files && input.files.length > 0) {
                     formData.append(input.name, input.files[0]);
-                    console.log('Archivo agregado:', input.name, input.files[0].name);
                 } else if (input.hasAttribute('required')) {
-                    // Si es requerido y no hay archivo, mostrar error
                     const label = input.closest('.mb-3')?.querySelector('.form-label')?.innerText || 'Archivo';
                     if (typeof window.mostrarNotificacion === 'function') {
                         window.mostrarNotificacion(`${label} es obligatorio`, 'warning');
@@ -718,11 +726,9 @@ function enviarSolicitudPago() {
                     return;
                 }
             } else {
-                // Para campos de texto, email, etc.
                 if (input.value) {
                     formData.append(input.name, input.value);
                 } else if (input.hasAttribute('required')) {
-                    // Si es requerido y está vacío, mostrar error
                     const label = input.closest('.mb-3')?.querySelector('.form-label')?.innerText || input.name;
                     if (typeof window.mostrarNotificacion === 'function') {
                         window.mostrarNotificacion(`${label} es obligatorio`, 'warning');
@@ -732,28 +738,6 @@ function enviarSolicitudPago() {
                     return;
                 }
             }
-        });
-    } else {
-        console.error('No se encontró la sección del método:', metodoPagoSeleccionado + 'Info');
-        if (typeof window.mostrarNotificacion === 'function') {
-            window.mostrarNotificacion('Error al cargar los datos del método de pago', 'danger');
-        }
-        return;
-    }
-
-    // Agregar el cupón aplicado (si existe)
-    @if(isset($totales->cupon_aplicado))
-        formData.append('cupon_aplicado', '{{ $totales->cupon_aplicado['codigo'] ?? '' }}');
-        formData.append('descuento_aplicado', {{ $totales->descuento_aplicado ?? 0 }});
-    @endif
-
-    // DEBUG: Mostrar qué se está enviando
-    console.log('=== DATOS A ENVIAR ===');
-    for (let pair of formData.entries()) {
-        if (pair[1] instanceof File) {
-            console.log(pair[0], 'File:', pair[1].name, pair[1].size);
-        } else {
-            console.log(pair[0], pair[1]);
         }
     }
 
@@ -780,7 +764,6 @@ function enviarSolicitudPago() {
                 modalMessage.textContent = data.message;
             }
             modal.show();
-            btn.disabled = true;
         } else {
             btn.disabled = false;
             btn.innerHTML = originalText;
@@ -790,17 +773,6 @@ function enviarSolicitudPago() {
             } else {
                 alert(data.message || 'Error al procesar la solicitud');
             }
-
-            if (data.errors) {
-                console.error('Errores de validación:', data.errors);
-                let mensajeErrores = '';
-                for (let campo in data.errors) {
-                    mensajeErrores += data.errors[campo].join(', ') + '\n';
-                }
-                if (mensajeErrores && typeof window.mostrarNotificacion === 'function') {
-                    window.mostrarNotificacion(mensajeErrores, 'danger');
-                }
-            }
         }
     })
     .catch(error => {
@@ -809,7 +781,7 @@ function enviarSolicitudPago() {
         btn.innerHTML = originalText;
 
         if (typeof window.mostrarNotificacion === 'function') {
-            window.mostrarNotificacion('Error al procesar la solicitud: ' + error.message, 'danger');
+            window.mostrarNotificacion('Error al procesar la solicitud', 'danger');
         } else {
             alert('Error al procesar la solicitud');
         }
@@ -824,7 +796,6 @@ function aplicarCupon() {
         return;
     }
 
-    // Deshabilitar botón y mostrar loading
     const btn = document.getElementById('aplicarCuponBtn');
     const originalText = btn.innerHTML;
     btn.disabled = true;
@@ -842,11 +813,9 @@ function aplicarCupon() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Recargar la página para mostrar los cambios
             location.reload();
         } else {
             mostrarMensajeCupon(data.message || 'Cupón no válido', 'error');
-            // Restaurar botón
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
@@ -906,9 +875,9 @@ function mostrarMensajeCupon(mensaje, tipo) {
         errorDiv.style.display = 'none';
     }
 }
+
 // Inicializar
 document.addEventListener('DOMContentLoaded', function() {
-    // Verificar si hay método de pago seleccionado por defecto
     const radios = document.querySelectorAll('input[name="metodo_pago"]');
     radios.forEach(radio => {
         if (radio.checked) {

@@ -13,7 +13,6 @@ class ProductosController extends Controller
     public function index(Request $request)
     {
         try {
-            // Solo cargamos categorías y moneda para la vista inicial
             $categorias = Cache::remember('categorias_activas_conteo', now()->addHours(6), function () {
                 return Categoria::where('is_active', true)
                     ->withCount('productos')
@@ -22,30 +21,41 @@ class ProductosController extends Controller
             });
 
             $monedaActual = MonedaHelper::getMonedaActual();
+            $carritoData = CarritoController::carritoSidebar();
 
             return view('client.productos.index', compact(
                 'categorias',
-                'monedaActual'
+                'monedaActual',
+                'carritoData'
             ));
 
         } catch (\Exception $e) {
+            $carritoData = CarritoController::carritoSidebar();
+
             return view('client.productos.index', [
                 'categorias' => collect([]),
                 'monedaActual' => MonedaHelper::getMonedaActual(),
+                'carritoData' => $carritoData,
                 'error' => 'Error al cargar los productos'
             ]);
         }
     }
 
     public function show($id)
-{
-    $producto = Producto::with(['categoria', 'stock'])
-        ->active()
-        ->findOrFail($id);
+    {
+        $producto = Producto::with(['categoria', 'stock'])
+            ->active()
+            ->findOrFail($id);
 
-    $monedaActual = MonedaHelper::getMonedaActual();
-    $precioInfo = MonedaHelper::getPrecioProductoEnMoneda($producto, $monedaActual->id);
+        $monedaActual = MonedaHelper::getMonedaActual();
+        $precioInfo = MonedaHelper::getPrecioProductoEnMoneda($producto, $monedaActual->id);
+        $carritoData = CarritoController::carritoSidebar();
 
-    return view('client.productos.detalle', compact('producto', 'monedaActual', 'precioInfo'));
+        return view('client.productos.detalle', compact(
+            'producto',
+            'monedaActual',
+            'precioInfo',
+            'carritoData'
+        ));
     }
 }

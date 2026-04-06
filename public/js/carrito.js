@@ -15,7 +15,8 @@ function formatearPrecio(monto, moneda) {
     if (!moneda) {
         return `$${parseFloat(monto || 0).toFixed(2)}`;
     }
-    return `${moneda.simbolo}${parseFloat(monto || 0).toFixed(2)}`;
+    const simbolo = moneda.simbolo || '$';
+    return `${simbolo}${parseFloat(monto || 0).toFixed(2)}`;
 }
 
 // Función para actualizar el contenido del carrito en la sidebar
@@ -40,27 +41,40 @@ window.actualizarSidebarCarrito = function() {
         if (data.success) {
             const cartCount = document.getElementById('cartCount');
             const cartTotal = document.getElementById('cartTotal');
-            const cartSubtotal = document.getElementById('cartSubtotal');
             const cartItemsCount = document.getElementById('cartItemsCount');
             const checkoutBtn = document.getElementById('checkoutBtn');
+            const monedaInfo = document.getElementById('monedaInfo');
 
             // Obtener información de la moneda actual
-            const monedaActual = data.totales.moneda_actual || { simbolo: '$', codigo: 'USD' };
+            const monedaActual = data.totales.moneda_actual;
 
-            // Actualizar contadores y totales con la moneda actual
+            // Mostrar información de moneda
+            if (monedaInfo) {
+                if (!data.totales.acepta_pagos && data.totales.moneda_a_cobrar) {
+                    monedaInfo.innerHTML = `
+                        <i class="fas fa-info-circle me-1"></i>
+                        Mostrando en ${monedaActual.nombre} (${monedaActual.codigo})
+                        <br>
+                        <small class="text-warning">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            Se cobrará en ${data.totales.moneda_a_cobrar.nombre} (${data.totales.moneda_a_cobrar.codigo})
+                        </small>
+                    `;
+                } else {
+                    monedaInfo.innerHTML = `
+                        <i class="fas fa-info-circle me-1"></i>
+                        Mostrando en ${monedaActual.nombre}
+                    `;
+                }
+            }
+
+            // Actualizar contadores
             if (cartCount) cartCount.textContent = data.totales.total_items;
             if (cartItemsCount) cartItemsCount.textContent = data.totales.total_items;
 
-            // Usar los totales formateados que vienen del backend
-            if (cartSubtotal) {
-                cartSubtotal.textContent = data.totales.subtotal_actual_formateado ||
-                    formatearPrecio(data.totales.subtotal_actual, monedaActual);
-            }
-
-            if (cartTotal) {
-                cartTotal.textContent = data.totales.total_actual_formateado ||
-                    formatearPrecio(data.totales.total_actual, monedaActual);
-            }
+            // Formatear y mostrar el total actual (ya está en la moneda correcta)
+            const totalFormateado = formatearPrecio(data.totales.total_actual, monedaActual);
+            if (cartTotal) cartTotal.textContent = totalFormateado;
 
             // Actualizar botón de checkout
             if (checkoutBtn) {
@@ -78,13 +92,16 @@ window.actualizarSidebarCarrito = function() {
                     const tieneDescuento = item.aplica_descuento && item.porcentaje_descuento > 0;
                     const esDigital = item.tipo_producto === 'digital';
 
+                    // Usar el precio_mostrar que ya viene calculado del backend
+                    const precioFormateado = formatearPrecio(item.precio_mostrar, monedaActual);
+
                     html += `
                         <div class="cart-item p-3 border-bottom" data-item-id="${item.id}">
                             <div class="d-flex">
                                 <!-- Imagen del producto -->
                                 <div class="flex-shrink-0">
                                     ${item.imagen ?
-                                        `<img src="${item.imagen}" alt="${item.nombre}"
+                                        `<img src="${item.imagen}" alt="${escapeHtml(item.nombre)}"
                                             class="rounded" style="width: 50px; height: 50px; object-fit: cover;">` :
                                         `<div class="bg-light rounded d-flex align-items-center justify-content-center"
                                             style="width: 50px; height: 50px;">
@@ -98,7 +115,7 @@ window.actualizarSidebarCarrito = function() {
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div>
                                             <h6 class="mb-1 small fw-bold" style="font-size: 0.8rem;">
-                                                ${item.nombre.substring(0, 30)}${item.nombre.length > 30 ? '...' : ''}
+                                                ${escapeHtml(item.nombre.substring(0, 30))}${item.nombre.length > 30 ? '...' : ''}
                                             </h6>
                                         </div>
                                         <button class="btn btn-link text-danger p-0 ms-1"
@@ -108,17 +125,15 @@ window.actualizarSidebarCarrito = function() {
                                         </button>
                                     </div>
 
-                                    <!-- Precio y cantidad - DIFERENTE PARA DIGITAL Y FÍSICO -->
+                                    <!-- Precio y cantidad -->
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         ${esDigital ? `
-                                            <!-- Para productos digitales: solo cantidad fija (1) sin controles -->
                                             <div class="d-flex align-items-center">
                                                 <small class="text-info">
                                                     <i class="fas fa-info-circle me-1"></i>Producto digital
                                                 </small>
                                             </div>
                                         ` : `
-                                            <!-- Para productos físicos: controles de cantidad normales -->
                                             <div class="d-flex align-items-center">
                                                 <button class="btn btn-sm btn-outline-secondary px-1 py-0"
                                                         onclick="actualizarCantidad(${item.id}, ${item.cantidad - 1})"
@@ -134,12 +149,10 @@ window.actualizarSidebarCarrito = function() {
                                             </div>
                                         `}
                                         <span class="small fw-bold text-success">
-                                            ${item.precio_unitario_actual_formateado ||
-                                                formatearPrecio(item.precio_unitario_actual, monedaActual)}
+                                            ${precioFormateado}
                                         </span>
                                     </div>
 
-                                    <!-- Badge de descuento si aplica -->
                                     ${tieneDescuento ? `
                                         <small class="text-warning d-block mt-1" style="font-size: 0.65rem;">
                                             <i class="fas fa-tag me-1"></i>
@@ -173,6 +186,17 @@ window.actualizarSidebarCarrito = function() {
                     </div>
                 `;
             }
+        } else if (data.error) {
+            console.error('Error del servidor:', data.error);
+            cartItems.innerHTML = `
+                <div class="text-center text-danger py-4">
+                    <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+                    <p class="mb-0">${escapeHtml(data.error)}</p>
+                    <button class="btn btn-sm btn-outline-danger mt-2" onclick="actualizarSidebarCarrito()">
+                        Reintentar
+                    </button>
+                </div>
+            `;
         }
     })
     .catch(error => {
@@ -191,6 +215,13 @@ window.actualizarSidebarCarrito = function() {
     });
 };
 
+// Función auxiliar para escapar HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Función para actualizar cantidad (solo para productos físicos)
 window.actualizarCantidad = function(itemId, nuevaCantidad) {
     if (nuevaCantidad < 1) return;
@@ -201,7 +232,6 @@ window.actualizarCantidad = function(itemId, nuevaCantidad) {
         return;
     }
 
-    // Nota: itemId ahora es el ID del CarritoProducto, no del producto
     fetch(`/carrito/actualizar-item/${itemId}`, {
         method: 'POST',
         headers: {
@@ -267,7 +297,7 @@ window.mostrarNotificacion = function(mensaje, tipo = 'success') {
     alertDiv.innerHTML = `
         <div class="d-flex align-items-center">
             <i class="fas fa-${tipo === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
-            <small>${mensaje}</small>
+            <small>${escapeHtml(mensaje)}</small>
         </div>
         <button type="button" class="btn-close btn-sm" data-bs-dismiss="alert"></button>
     `;
@@ -280,29 +310,36 @@ window.mostrarNotificacion = function(mensaje, tipo = 'success') {
 
 // Función para cambiar moneda
 window.cambiarMoneda = function(currencyCode) {
-    console.log('Cambiando moneda a:', currencyCode);
+    const token = getCsrfToken();
+    if (!token) {
+        mostrarNotificacion('Error de seguridad: Token CSRF no disponible', 'danger');
+        return;
+    }
 
     fetch('/cambiar-moneda', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': getCsrfToken()
+            'X-CSRF-TOKEN': token
         },
         body: JSON.stringify({ currency: currencyCode })
     })
     .then(response => response.json())
     .then(data => {
-        console.log('Respuesta:', data);
         if (data.success) {
             // Actualizar el sidebar del carrito
             if (typeof window.actualizarSidebarCarrito === 'function') {
                 window.actualizarSidebarCarrito();
             }
 
-            // Mostrar notificación
+            // Recargar la página para actualizar todos los precios
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+
             mostrarNotificacion(`Moneda cambiada a ${currencyCode}`, 'success');
         } else {
-            mostrarNotificacion('Error al cambiar la moneda', 'danger');
+            mostrarNotificacion(data.message || 'Error al cambiar la moneda', 'danger');
         }
     })
     .catch(error => {

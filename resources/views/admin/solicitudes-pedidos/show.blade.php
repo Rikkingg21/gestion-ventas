@@ -69,10 +69,10 @@
                                     </td>
                                     <td class="px-6 py-4 text-center">{{ $item->cantidad }}</td>
                                     <td class="px-6 py-4 text-right">
-                                        {{ $solicitud->moneda->simbolo }} {{ number_format($item->precio_adquirido_local, 2) }}
+                                        {{ $solicitud->moneda->simbolo }} {{ number_format($item->precio_adquirido_usd, 2) }}
                                     </td>
                                     <td class="px-6 py-4 text-right font-medium">
-                                        {{ $solicitud->moneda->simbolo }} {{ number_format($item->subtotal_local, 2) }}
+                                        {{ $solicitud->moneda->simbolo }} {{ number_format($item->precio_adquirido_usd * $item->cantidad, 2) }}
                                     </td>
                                 </tr>
                             @endforeach
@@ -80,11 +80,13 @@
                         <tfoot class="bg-gray-50">
                             <tr>
                                 <td colspan="3" class="px-6 py-3 text-right font-medium">Subtotal:</td>
-                                <td class="px-6 py-3 text-right font-medium">{{ $solicitud->moneda->simbolo }} {{ number_format($solicitud->carrito->total_local, 2) }}</td>
+                                <td class="px-6 py-3 text-right font-medium">{{ $solicitud->moneda->simbolo }} {{ number_format($solicitud->carrito->total_usd, 2) }}</td>
                             </tr>
-                            @if(isset($solicitud->info_pago['cupon_aplicado']))
+                            @if(isset($solicitud->info_pago['cupon_aplicado']) && is_array($solicitud->info_pago['cupon_aplicado']))
                             <tr>
-                                <td colspan="3" class="px-6 py-3 text-right font-medium text-emerald-600">Descuento ({{ $solicitud->info_pago['cupon_aplicado']['codigo'] }}):</td>
+                                <td colspan="3" class="px-6 py-3 text-right font-medium text-emerald-600">
+                                    Descuento ({{ $solicitud->info_pago['cupon_aplicado']['codigo'] }}):
+                                </td>
                                 <td class="px-6 py-3 text-right font-medium text-emerald-600">
                                     -{{ $solicitud->moneda->simbolo }} {{ number_format($solicitud->info_pago['cupon_aplicado']['descuento'], 2) }}
                                 </td>
@@ -118,7 +120,7 @@
                             </p>
                         </div>
                         <div>
-                            <label class="text-xs text-gray-500 uppercase">Moneda</label>
+                            <label class="text-xs text-gray-500 uppercase">Moneda de cobro</label>
                             <p class="font-medium">{{ $solicitud->moneda->codigo_iso }} ({{ $solicitud->moneda->simbolo }})</p>
                         </div>
                     </div>
@@ -128,13 +130,49 @@
                             <label class="text-xs text-gray-500 uppercase mb-2 block">Datos del pago</label>
                             <div class="bg-gray-50 p-4 rounded-lg">
                                 @foreach($solicitud->info_pago as $key => $value)
-                                    @if($key != 'cupon_aplicado' && $key != 'comentarios_cliente')
-                                        <div class="mb-2">
-                                            <span class="text-sm font-medium text-gray-700">{{ ucfirst(str_replace('_', ' ', $key)) }}:</span>
-                                            <span class="text-sm text-gray-600 ml-2">{{ $value }}</span>
-                                        </div>
+                                    @if($key != 'cupon_aplicado' && $key != 'comentarios_cliente' && $key != 'moneda_cobro' && $key != 'moneda_visualizacion')
+                                        @if(!is_array($value))
+                                            <div class="mb-2">
+                                                <span class="text-sm font-medium text-gray-700">{{ ucfirst(str_replace('_', ' ', $key)) }}:</span>
+                                                <span class="text-sm text-gray-600 ml-2">{{ $value }}</span>
+                                            </div>
+                                        @endif
                                     @endif
                                 @endforeach
+
+                                <!-- Mostrar información de moneda de visualización si existe -->
+                                @if(isset($solicitud->info_pago['moneda_visualizacion']) && is_array($solicitud->info_pago['moneda_visualizacion']))
+                                    <div class="mb-2 pt-2 border-t">
+                                        <span class="text-sm font-medium text-gray-700">Moneda de visualización:</span>
+                                        <span class="text-sm text-gray-600 ml-2">
+                                            {{ $solicitud->info_pago['moneda_visualizacion']['codigo'] }} ({{ $solicitud->info_pago['moneda_visualizacion']['simbolo'] }})
+                                        </span>
+                                    </div>
+                                @endif
+
+                                <!-- Mostrar información del cupón si existe -->
+                                @if(isset($solicitud->info_pago['cupon_aplicado']) && is_array($solicitud->info_pago['cupon_aplicado']))
+                                    <div class="mt-3 pt-3 border-t">
+                                        <span class="text-sm font-medium text-emerald-600">Cupón aplicado:</span>
+                                        <div class="mt-1 ml-2">
+                                            <div><span class="text-xs text-gray-500">Código:</span> <strong>{{ $solicitud->info_pago['cupon_aplicado']['codigo'] }}</strong></div>
+                                            <div><span class="text-xs text-gray-500">Tipo:</span> {{ ucfirst($solicitud->info_pago['cupon_aplicado']['tipo']) }}</div>
+                                            <div><span class="text-xs text-gray-500">Valor:</span>
+                                                @if($solicitud->info_pago['cupon_aplicado']['tipo'] == 'porcentaje')
+                                                    {{ $solicitud->info_pago['cupon_aplicado']['valor'] }}%
+                                                @else
+                                                    {{ $solicitud->moneda->simbolo }} {{ number_format($solicitud->info_pago['cupon_aplicado']['valor'], 2) }}
+                                                @endif
+                                            </div>
+                                            <div><span class="text-xs text-gray-500">Descuento:</span> {{ $solicitud->moneda->simbolo }} {{ number_format($solicitud->info_pago['cupon_aplicado']['descuento'], 2) }}</div>
+                                            @if(isset($solicitud->info_pago['cupon_aplicado']['moneda_codigo']))
+                                                <div><span class="text-xs text-gray-500">Moneda del cupón:</span> {{ $solicitud->info_pago['cupon_aplicado']['moneda_codigo'] }}</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endif
+
+                                <!-- Comentarios del cliente -->
                                 @if(isset($solicitud->info_pago['comentarios_cliente']))
                                     <div class="mt-3 pt-3 border-t">
                                         <span class="text-sm font-medium text-gray-700">Comentarios del cliente:</span>

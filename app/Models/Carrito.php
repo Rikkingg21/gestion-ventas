@@ -17,7 +17,8 @@ class Carrito extends Model
         'session_id',
         'ip_address',
         'user_agent',
-        'estado'
+        'estado',
+        'moneda_id'
     ];
 
     protected $casts = [
@@ -29,42 +30,39 @@ class Carrito extends Model
     /**
      * Relaciones
      */
-
-    // Relación con cliente (sin foreign key explícita en BD)
     public function cliente()
     {
         return $this->belongsTo(Client::class, 'cliente_id');
     }
 
-    // Relación con los productos del carrito
     public function productos()
     {
         return $this->hasMany(CarritoProducto::class, 'carrito_id');
     }
 
+    public function moneda()
+    {
+        return $this->belongsTo(Moneda::class, 'moneda_id');
+    }
+
     /**
      * Scopes
      */
-
-    // Scope para carritos activos
     public function scopeActivo($query)
     {
         return $query->where('estado', 'activo');
     }
 
-    // Scope por cliente
     public function scopePorCliente($query, $clienteId)
     {
         return $query->where('cliente_id', $clienteId);
     }
 
-    // Scope por sesión
     public function scopePorSesion($query, $sessionId)
     {
         return $query->where('session_id', $sessionId);
     }
 
-    // Scope por IP
     public function scopePorIp($query, $ipAddress)
     {
         return $query->where('ip_address', $ipAddress);
@@ -73,14 +71,11 @@ class Carrito extends Model
     /**
      * Métodos útiles
      */
-
-    // Verificar si el carrito pertenece a un cliente registrado
     public function tieneClienteRegistrado()
     {
         return !is_null($this->cliente_id);
     }
 
-    // Obtener identificador único del carrito
     public function getIdentificadorAttribute()
     {
         if ($this->cliente_id) {
@@ -92,7 +87,6 @@ class Carrito extends Model
         return 'ip_' . $this->ip_address;
     }
 
-    // Calcular total del carrito en USD
     public function getTotalUsdAttribute()
     {
         return $this->productos->sum(function($producto) {
@@ -100,7 +94,6 @@ class Carrito extends Model
         });
     }
 
-    // Calcular total del carrito en moneda local
     public function getTotalLocalAttribute()
     {
         return $this->productos->sum(function($producto) {
@@ -108,15 +101,18 @@ class Carrito extends Model
         });
     }
 
-    // Obtener cantidad total de productos
     public function getTotalItemsAttribute()
     {
         return $this->productos->sum('cantidad');
     }
 
-    // Vaciar carrito
     public function vaciar()
     {
         return $this->productos()->delete();
+    }
+
+    public function estaVacio()
+    {
+        return $this->productos()->count() === 0;
     }
 }

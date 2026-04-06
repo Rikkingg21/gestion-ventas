@@ -19,11 +19,13 @@ class Moneda extends Model
         'codigo_iso',
         'simbolo',
         'tasa_cambio_usd', // tasa de cambio respecto al USD
-        'is_active'
+        'is_active',
+        'acpetar_pagos'
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'acpetar_pagos' => 'boolean',
         'tasa_cambio_usd' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
