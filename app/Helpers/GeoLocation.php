@@ -20,10 +20,11 @@ class GeoLocation
             // Usar una IP pública conocida (ej: Google DNS, Cloudflare, etc)
             //$testIp = '190.12.74.242'; // IP de UGELT
             //$testIp = '102.217.238.255'; // IP de Colombia
-            $testIp = '1.178.29.255'; //ip MExico
+            //$testIp = '1.178.29.255'; //ip MExico
             //$testIp = '1.0.3.255'; //ip China
             //$testIp = '8.8.8.8'; // IP de Googl
             //$testIp = '80.66.14.38'; //Alemania
+            $testIp = '1.178.47.255'; // Brasil
             // $testIp = '1.1.1.1'; // IP de Cloudflare
             // $testIp = '208.67.222.222'; // IP de OpenDNS
             /*

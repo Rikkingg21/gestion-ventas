@@ -164,6 +164,16 @@ Route::prefix('admin')->name('admin.')->group(function () {
             Route::post('/productos/{producto}/eliminar-imagen', [App\Http\Controllers\Admin\ProductosController::class, 'eliminarImagen'])->name('productos.eliminar-imagen')->middleware('admin:actualizar,productos');
         });
 
+        // Gestión de asignación de monedas - requiere permiso de lectura
+        Route::middleware('admin:leer,moneda')->group(function () {
+            Route::get('/moneda', [App\Http\Controllers\Admin\MonedaController::class, 'index'])->name('moneda.index');
+            Route::get('/moneda/create', [App\Http\Controllers\Admin\MonedaController::class, 'create'])->name('moneda.create')->middleware('admin:crear,monedas');
+            Route::post('/moneda', [App\Http\Controllers\Admin\MonedaController::class, 'store'])->name('moneda.store')->middleware('admin:crear,monedas');
+            Route::get('/moneda/{moneda}/edit', [App\Http\Controllers\Admin\MonedaController::class, 'edit'])->name('moneda.edit')->middleware('admin:actualizar,monedas');
+            Route::put('/moneda/{moneda}', [App\Http\Controllers\Admin\MonedaController::class, 'update'])->name('moneda.update')->middleware('admin:actualizar,monedas');
+            Route::delete('/moneda/{moneda}', [App\Http\Controllers\Admin\MonedaController::class, 'destroy'])->name('moneda.destroy')->middleware('admin:eliminar,monedas');
+        });
+
         // Gestión de solicitud de pedidos - requiere permiso de lectura
         Route::middleware('admin:leer,solicitudes-pedidos')->group(function () {
             Route::get('/solicitudes-pedidos', [App\Http\Controllers\Admin\SolicitudesPedidosController::class, 'index'])->name('solicitudes-pedidos.index');
