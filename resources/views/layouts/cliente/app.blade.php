@@ -7,8 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Mi Empresa - Clientes')</title>
 
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('scss/custom.css') }}">
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -17,12 +16,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icon-css/css/flag-icons.min.css">
 
     <style>
-        :root {
-            --primary-color: #065f46;
-            --primary-hover: #047857;
-            --bg-light: #f3f4f6;
-        }
-
         body {
             background-color: var(--bg-light);
             padding-top: 70px; /* Altura del navbar fijo */
@@ -169,8 +162,6 @@
             box-shadow: 0 0 3px rgba(0,0,0,0.1);
         }
     </style>
-
-    @stack('styles')
 </head>
 <body>
     <header class="navbar navbar-expand-md navbar-dark bd-navbar">
@@ -456,7 +447,7 @@
     </footer>
 
     <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('js/carrito.js') }}"></script>
     <script>
         // Variable para almacenar la moneda pendiente de cambio

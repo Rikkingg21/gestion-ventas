@@ -37,7 +37,7 @@
                         <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead class="bg-light">
-                                    32
+                                    <tr>
                                         <th>N° Solicitud</th>
                                         <th>Fecha</th>
                                         <th>Método de Pago</th>
