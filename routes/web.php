@@ -49,6 +49,8 @@ Route::prefix('/')->name('client.')->group(function () {
     Route::get('/register', [App\Http\Controllers\Client\Auth\RegisterController::class, 'showRegistrationForm'])->name('register');
     Route::post('/register', [App\Http\Controllers\Client\Auth\RegisterController::class, 'register']);
 
+    Route::get('/get-document-types/{countryCode}', [App\Http\Controllers\Client\Auth\RegisterController::class, 'getDocumentTypes'])->name('get.document.types');
+
     Route::post('/logout', [App\Http\Controllers\Client\Auth\LoginController::class, 'logout'])->name('logout')->middleware('auth:client');
     // Rutas protegidas para clientes
     Route::middleware('auth:client')->group(function () {

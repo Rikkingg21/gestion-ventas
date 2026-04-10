@@ -24,8 +24,8 @@ class User extends Authenticatable
         'username',
         'nombres',
         'apellido_paterno',
-        'pais',
         'apellido_materno',
+        'pais', //CODIGO ISO
         'email',
         'nro_documento',
         'tipo_documento',
