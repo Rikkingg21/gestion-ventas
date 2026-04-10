@@ -18,9 +18,9 @@
         <div class="col-lg-8">
             <!-- Información de Productos -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
+                <div class="card-header bg-success border-0 text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-boxes me-2 text-success"></i>
+                        <i class="fas fa-boxes me-2"></i>
                         Productos Solicitados
                     </h5>
                 </div>
@@ -42,6 +42,7 @@
                                     $moneda = $solicitud->moneda;
                                     $simboloMoneda = $moneda ? $moneda->simbolo : 'S/';
                                     $usarPrecioLocal = $moneda && $moneda->codigo_iso === 'PEN';
+                                    $estadoActual = $solicitud->estados->first();
                                 @endphp
 
                                 @forelse($solicitud->carrito->productos as $item)
@@ -55,7 +56,7 @@
                                         $subtotal = $precioUnitario * $item->cantidad;
                                     @endphp
                                     <tr>
-                                        <td>
+                                        <td class="align-middle">
                                             <div class="d-flex align-items-center">
                                                 @php
                                                     $imagenUrl = null;
@@ -122,10 +123,7 @@
                                         </td>
                                         <td class="text-center align-middle">
                                             @if($producto->esDigital() && $producto->url_recurso)
-                                                @php
-                                                    $estadoActual = $solicitud->estados->first();
-                                                @endphp
-                                                @if($estadoActual && in_array($estadoActual->estado, ['aprobado', 'completado', 'pagado']))
+                                                @if($estadoActual && $estadoActual->estado === 'aprobado')
                                                     <a href="{{ route('client.comprobante.drive', [
                                                         'id_compras' => $solicitud->id,
                                                         'id_producto' => $producto->id
@@ -137,7 +135,7 @@
                                                 @else
                                                     <button class="btn btn-sm btn-secondary" disabled>
                                                         <i class="fas fa-lock me-1"></i>
-                                                        Pendiente de pago
+                                                        {{ $estadoActual && $estadoActual->estado === 'rechazado' ? 'Solicitud Rechazada' : 'Pendiente de aprobación' }}
                                                     </button>
                                                 @endif
                                             @endif
@@ -154,14 +152,14 @@
                             </tbody>
                             <tfoot class="bg-light">
                                 <tr>
-                                    <td colspan="5" class="text-end fw-bold">Subtotal: </td>
+                                    <td colspan="5" class="text-end fw-bold">Subtotal:</td>
                                     <td class="text-end fw-bold">
                                         {{ $simboloMoneda }} {{ number_format($usarPrecioLocal ? $solicitud->carrito->total_local : $solicitud->carrito->total_usd, 2) }}
                                     </td>
                                 </tr>
                                 @if(($solicitud->descuento ?? 0) > 0)
                                 <tr>
-                                    <td colspan="5" class="text-end text-success">Descuento aplicado: </td>
+                                    <td colspan="5" class="text-end text-success">Descuento aplicado:</td>
                                     <td class="text-end text-success">
                                         -{{ $simboloMoneda }} {{ number_format($solicitud->descuento, 2) }}
                                     </td>
@@ -169,14 +167,14 @@
                                 @endif
                                 @if(($solicitud->igv ?? 0) > 0)
                                 <tr>
-                                    <td colspan="5" class="text-end">IGV (18%): </td>
+                                    <td colspan="5" class="text-end">IGV (18%):</td>
                                     <td class="text-end">
                                         {{ $simboloMoneda }} {{ number_format($solicitud->igv, 2) }}
                                     </td>
                                 </tr>
                                 @endif
                                 <tr class="border-top">
-                                    <td colspan="5" class="text-end fw-bold fs-5">Total: </td>
+                                    <td colspan="5" class="text-end fw-bold fs-5">Total:</td>
                                     <td class="text-end fw-bold fs-5 text-success">
                                         {{ $simboloMoneda }} {{ number_format($solicitud->monto, 2) }}
                                     </td>
@@ -191,9 +189,9 @@
         <div class="col-lg-4">
             <!-- Información de la Solicitud -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
+                <div class="card-header bg-success border-0 text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-info-circle me-2 text-success"></i>
+                        <i class="fas fa-info-circle me-2"></i>
                         Información de la Solicitud
                     </h5>
                 </div>
@@ -242,86 +240,89 @@
                 </div>
             </div>
 
-            <!-- Estado de la Solicitud -->
+            <!-- Estado de la Solicitud (Solo 3 estados) -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
+                <div class="card-header bg-success border-0 text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-chart-line me-2 text-success"></i>
+                        <i class="fas fa-chart-line me-2"></i>
                         Estado de la Solicitud
                     </h5>
                 </div>
                 <div class="card-body">
-                    @forelse($solicitud->estados as $estado)
-                        <div class="d-flex mb-3">
+                    @php
+                        $estadosMap = [
+                            'solicitado' => ['icon' => 'fa-paper-plane', 'color' => 'warning', 'text' => 'Solicitud Enviada', 'desc' => 'Tu solicitud ha sido enviada y está siendo evaluada'],
+                            'aprobado' => ['icon' => 'fa-check-circle', 'color' => 'success', 'text' => 'Solicitud Aprobada', 'desc' => 'Tu solicitud ha sido aprobada. ¡Pronto recibirás tu contenido!'],
+                            'rechazado' => ['icon' => 'fa-times-circle', 'color' => 'danger', 'text' => 'Solicitud Rechazada', 'desc' => 'Lo sentimos, tu solicitud ha sido rechazada']
+                        ];
+                        $estadoInfo = $estadosMap[$estadoActual->estado ?? 'solicitado'] ?? $estadosMap['solicitado'];
+                    @endphp
+
+                    <div class="text-center mb-4">
+                        <div class="mb-3">
+                            <i class="fas {{ $estadoInfo['icon'] }} fa-4x text-{{ $estadoInfo['color'] }}"></i>
+                        </div>
+                        <h6 class="fw-bold text-{{ $estadoInfo['color'] }}">
+                            {{ $estadoInfo['text'] }}
+                        </h6>
+                        <p class="small text-secondary mb-0">
+                            {{ $estadoInfo['desc'] }}
+                        </p>
+                    </div>
+
+                    <!-- Timeline de estados -->
+                    <div class="timeline">
+                        <div class="d-flex mb-3 {{ $estadoActual->estado == 'solicitado' ? 'opacity-100' : 'opacity-50' }}">
                             <div class="me-3">
-                                @if($loop->first)
-                                    <i class="fas fa-check-circle text-success fa-lg"></i>
-                                @else
-                                    <i class="fas fa-circle text-muted fa-xs mt-2"></i>
-                                @endif
+                                <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                    <i class="fas fa-paper-plane text-white fa-sm"></i>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">Solicitud Enviada</div>
+                                <div class="small text-secondary">
+                                    {{ $solicitud->created_at->format('d/m/Y H:i:s') }}
+                                    <br>
+                                    {{ $solicitud->created_at->diffForHumans() }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex mb-3 {{ $estadoActual->estado == 'aprobado' ? 'opacity-100' : ($estadoActual->estado == 'rechazado' ? 'opacity-100' : 'opacity-50') }}">
+                            <div class="me-3">
+                                <div class="rounded-circle {{ $estadoActual->estado == 'aprobado' ? 'bg-success' : ($estadoActual->estado == 'rechazado' ? 'bg-danger' : 'bg-secondary') }} d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                    <i class="fas {{ $estadoActual->estado == 'aprobado' ? 'fa-check' : ($estadoActual->estado == 'rechazado' ? 'fa-times' : 'fa-clock') }} text-white fa-sm"></i>
+                                </div>
                             </div>
                             <div class="flex-grow-1">
                                 <div class="fw-bold">
-                                    @switch($estado->estado)
-                                        @case('solicitado')
-                                            Solicitud Enviada
-                                            @break
-                                        @case('pendiente')
-                                            Pendiente de Pago
-                                            @break
-                                        @case('pagado')
-                                            Pago Registrado
-                                            @break
-                                        @case('aprobado')
-                                            Solicitud Aprobada
-                                            @break
-                                        @case('rechazado')
-                                            Solicitud Rechazada
-                                            @break
-                                        @case('en_proceso')
-                                            En Proceso
-                                            @break
-                                        @case('enviado')
-                                            Enviado
-                                            @break
-                                        @case('entregado')
-                                            Entregado
-                                            @break
-                                        @case('cancelado')
-                                            Cancelado
-                                            @break
-                                        @default
-                                            {{ ucfirst($estado->estado) }}
-                                    @endswitch
+                                    {{ $estadoActual->estado == 'aprobado' ? 'Solicitud Aprobada' : ($estadoActual->estado == 'rechazado' ? 'Solicitud Rechazada' : 'Procesando Solicitud') }}
                                 </div>
-                                <div class="text-secondary small">
-                                    {{ $estado->created_at->format('d/m/Y H:i:s') }}
-                                    <br>
-                                    {{ $estado->created_at->diffForHumans() }}
-                                </div>
-                                @if($estado->comentarios)
-                                    <div class="alert alert-info mt-2 mb-0 py-2 small">
-                                        <i class="fas fa-comment me-1"></i>
-                                        {{ $estado->comentarios }}
+                                @if($estadoActual && $estadoActual->estado != 'solicitado')
+                                    <div class="small text-secondary">
+                                        {{ $estadoActual->created_at->format('d/m/Y H:i:s') }}
+                                        <br>
+                                        {{ $estadoActual->created_at->diffForHumans() }}
                                     </div>
+                                    @if($estadoActual->comentarios)
+                                        <div class="alert alert-{{ $estadoActual->estado == 'aprobado' ? 'success' : 'danger' }} mt-2 mb-0 py-2 small">
+                                            <i class="fas fa-comment me-1"></i>
+                                            {{ $estadoActual->comentarios }}
+                                        </div>
+                                    @endif
                                 @endif
                             </div>
                         </div>
-                        @if(!$loop->last)
-                            <hr class="my-2">
-                        @endif
-                    @empty
-                        <p class="text-secondary mb-0 text-center">No hay información de estados</p>
-                    @endforelse
+                    </div>
                 </div>
             </div>
 
             <!-- Información de Pago -->
             @if($solicitud->info_pago && count($solicitud->info_pago) > 0)
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-white">
+                <div class="card-header bg-success border-0 text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-credit-card me-2 text-success"></i>
+                        <i class="fas fa-credit-card me-2"></i>
                         Información de Pago
                     </h5>
                 </div>
@@ -333,7 +334,7 @@
                                 <div class="mt-1">
                                     @if(in_array($key, ['qr_code', 'qr', 'qr_url', 'imagen_qr', 'qrcode']))
                                         @if(filter_var($value, FILTER_VALIDATE_URL))
-                                            <img src="{{ $value }}" alt="Código QR" class="img-fluid border rounded p-2" style="max-width: 200px;">
+                                            <img src="{{ $value }}" alt="Código QR" class="img-fluid border rounded p-2" style="max-width: 200px; cursor: pointer;" onclick="showImageModal(this.src)">
                                         @else
                                             <p class="text-break">{{ $value }}</p>
                                         @endif
@@ -361,17 +362,17 @@
             </div>
             @endif
 
-            <!-- Imágenes de comprobante -->
+            <!-- Imágenes de comprobante mejorado -->
             @if($solicitud->imagen_1 || $solicitud->imagen_2 || $solicitud->imagen_3)
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-white">
+                <div class="card-header bg-success border-0 text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-image me-2 text-success"></i>
-                        Mis Comprobantes de Pago
+                        <i class="fas fa-image me-2"></i>
+                        Comprobantes de Pago
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
+                    <div class="row g-3">
                         @for($i = 1; $i <= 3; $i++)
                             @php
                                 $campo = "imagen_{$i}";
@@ -380,25 +381,25 @@
                             @if($ruta)
                                 @php
                                     $hash = basename($ruta);
+                                    $imageUrl = route('client.comprobante.ver', $hash);
                                 @endphp
-                                <div class="col-md-12 mb-3">
-                                    <div class="card h-100">
-                                        <div class="card-body text-center">
-                                            <a href="{{ route('client.comprobante.ver', $hash) }}" target="_blank">
-                                                <img src="{{ route('client.comprobante.ver', $hash) }}"
-                                                     alt="Comprobante {{ $i }}"
-                                                     class="img-fluid rounded border"
-                                                     style="max-height: 200px; width: auto; object-fit: contain;">
-                                            </a>
+                                <div class="col-12">
+                                    <div class="card h-100 border-0 shadow-sm">
+                                        <div class="card-body text-center p-3">
+                                            <img src="{{ $imageUrl }}"
+                                                 alt="Comprobante {{ $i }}"
+                                                 class="img-fluid rounded border cursor-pointer"
+                                                 style="max-height: 150px; width: auto; object-fit: contain; cursor: pointer;"
+                                                 onclick="showImageModal('{{ $imageUrl }}')">
                                         </div>
-                                        <div class="card-footer bg-white text-center">
-                                            <a href="{{ route('client.comprobante.ver', $hash) }}"
-                                               target="_blank"
-                                               class="btn btn-sm btn-outline-success">
-                                                <i class="fas fa-eye me-1"></i> Ver
-                                            </a>
+                                        <div class="card-footer bg-white border-0 text-center pt-0">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-success me-2"
+                                                    onclick="showImageModal('{{ $imageUrl }}')">
+                                                <i class="fas fa-eye me-1"></i> Ampliar
+                                            </button>
                                             <a href="{{ route('client.comprobante.descargar', $hash) }}"
-                                               class="btn btn-sm btn-outline-primary">
+                                               class="btn btn-sm btn-outline-secondary">
                                                 <i class="fas fa-download me-1"></i> Descargar
                                             </a>
                                         </div>
@@ -422,4 +423,45 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para ver imágenes -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-image me-2"></i>
+                    Comprobante de Pago
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <img id="modalImage" src="" alt="Comprobante" class="img-fluid" style="max-height: 80vh; width: auto;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    Cerrar
+                </button>
+                <a id="downloadLink" href="#" class="btn btn-success">
+                    <i class="fas fa-download me-1"></i>
+                    Descargar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showImageModal(imageUrl) {
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        const modalImage = document.getElementById('modalImage');
+        const downloadLink = document.getElementById('downloadLink');
+
+        modalImage.src = imageUrl;
+        downloadLink.href = imageUrl;
+
+        modal.show();
+    }
+</script>
 @endsection
