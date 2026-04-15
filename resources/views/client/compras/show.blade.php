@@ -8,8 +8,8 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-success">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('client.compras.index') }}" class="text-success">Mis Compras</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-primary">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('client.compras.index') }}" class="text-primary">Mis Compras</a></li>
             <li class="breadcrumb-item active" aria-current="page">Detalle #{{ str_pad($solicitud->id, 6, '0', STR_PAD_LEFT) }}</li>
         </ol>
     </nav>
@@ -18,7 +18,7 @@
         <div class="col-lg-8">
             <!-- Información de Productos -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success border-0 text-white">
+                <div class="card-header bg-primary border-0 text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-boxes me-2"></i>
                         Productos Solicitados
@@ -128,7 +128,7 @@
                                                         'id_compras' => $solicitud->id,
                                                         'id_producto' => $producto->id
                                                     ]) }}"
-                                                       class="btn btn-sm btn-success">
+                                                       class="btn btn-sm btn-primary">
                                                         <i class="fab fa-google-drive me-1"></i>
                                                         Ver contenido
                                                     </a>
@@ -159,8 +159,8 @@
                                 </tr>
                                 @if(($solicitud->descuento ?? 0) > 0)
                                 <tr>
-                                    <td colspan="5" class="text-end text-success">Descuento aplicado:</td>
-                                    <td class="text-end text-success">
+                                    <td colspan="5" class="text-end text-primary">Descuento aplicado:</td>
+                                    <td class="text-end text-primary">
                                         -{{ $simboloMoneda }} {{ number_format($solicitud->descuento, 2) }}
                                     </td>
                                 </tr>
@@ -175,7 +175,7 @@
                                 @endif
                                 <tr class="border-top">
                                     <td colspan="5" class="text-end fw-bold fs-5">Total:</td>
-                                    <td class="text-end fw-bold fs-5 text-success">
+                                    <td class="text-end fw-bold fs-5 text-primary">
                                         {{ $simboloMoneda }} {{ number_format($solicitud->monto, 2) }}
                                     </td>
                                 </tr>
@@ -189,7 +189,7 @@
         <div class="col-lg-4">
             <!-- Información de la Solicitud -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success border-0 text-white">
+                <div class="card-header bg-primary border-0 text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-info-circle me-2"></i>
                         Información de la Solicitud
@@ -230,7 +230,7 @@
                         @if($solicitud->cupon)
                         <dt class="col-6">Cupón Aplicado:</dt>
                         <dd class="col-6">
-                            <span class="badge bg-success">
+                            <span class="badge bg-primary">
                                 <i class="fas fa-ticket-alt me-1"></i>
                                 {{ $solicitud->cupon->codigo }}
                             </span>
@@ -242,7 +242,7 @@
 
             <!-- Estado de la Solicitud (Solo 3 estados) -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success border-0 text-white">
+                <div class="card-header bg-primary border-0 text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-chart-line me-2"></i>
                         Estado de la Solicitud
@@ -320,7 +320,7 @@
             <!-- Información de Pago -->
             @if($solicitud->info_pago && count($solicitud->info_pago) > 0)
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success border-0 text-white">
+                <div class="card-header bg-primary border-0 text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-credit-card me-2"></i>
                         Información de Pago
@@ -339,7 +339,7 @@
                                             <p class="text-break">{{ $value }}</p>
                                         @endif
                                     @elseif(in_array($key, ['monto', 'amount', 'total']))
-                                        <p class="fw-bold text-success">{{ $simboloMoneda }} {{ number_format(floatval($value), 2) }}</p>
+                                        <p class="fw-bold text-primary">{{ $simboloMoneda }} {{ number_format(floatval($value), 2) }}</p>
                                     @elseif(in_array($key, ['fecha', 'date', 'fecha_pago']))
                                         <p>{{ date('d/m/Y H:i:s', strtotime($value)) }}</p>
                                     @else
@@ -365,7 +365,7 @@
             <!-- Imágenes de comprobante mejorado -->
             @if($solicitud->imagen_1 || $solicitud->imagen_2 || $solicitud->imagen_3)
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-success border-0 text-white">
+                <div class="card-header bg-primary border-0 text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-image me-2"></i>
                         Comprobantes de Pago
@@ -394,7 +394,7 @@
                                         </div>
                                         <div class="card-footer bg-white border-0 text-center pt-0">
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-success me-2"
+                                                    class="btn btn-sm btn-outline-primary me-2"
                                                     onclick="showImageModal('{{ $imageUrl }}')">
                                                 <i class="fas fa-eye me-1"></i> Ampliar
                                             </button>
@@ -416,7 +416,7 @@
 
     <div class="row mt-4">
         <div class="col-12">
-            <a href="{{ route('client.compras.index') }}" class="btn btn-outline-success">
+            <a href="{{ route('client.compras.index') }}" class="btn btn-outline-primary">
                 <i class="fas fa-arrow-left me-2"></i>
                 Volver a Mis Compras
             </a>
@@ -428,7 +428,7 @@
 <div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xl">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">
                     <i class="fas fa-image me-2"></i>
                     Comprobante de Pago
@@ -443,7 +443,7 @@
                     <i class="fas fa-times me-1"></i>
                     Cerrar
                 </button>
-                <a id="downloadLink" href="#" class="btn btn-success">
+                <a id="downloadLink" href="#" class="btn btn-primary">
                     <i class="fas fa-download me-1"></i>
                     Descargar
                 </a>

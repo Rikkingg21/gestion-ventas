@@ -9,8 +9,8 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-success">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-success">Productos</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-primary">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-primary">Productos</a></li>
             <li class="breadcrumb-item active" aria-current="page">Mi Carrito</li>
         </ol>
     </nav>
@@ -30,7 +30,7 @@
         <!-- Columna principal: Items del carrito -->
         <div class="col-lg-8">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-cart me-2"></i>
                         <span id="cartHeaderTitle">Mi Carrito
@@ -42,7 +42,7 @@
                         </span>
                         @if(isset($monedaActual))
                             <small class="ms-2">
-                                <span class="badge bg-light text-success">
+                                <span class="badge bg-light text-primary">
                                     {{ $monedaActual->simbolo }} {{ $monedaActual->codigo_iso }}
                                 </span>
                             </small>
@@ -112,10 +112,10 @@
                                                                 {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($precioOriginal, 2) }}
                                                             </span>
                                                             <br>
-                                                            <span class="fw-bold text-success">
+                                                            <span class="fw-bold text-primary">
                                                                 {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($item['precio_mostrar'], 2) }}
                                                             </span>
-                                                            <small class="badge bg-success ms-1">-{{ $item['porcentaje_descuento'] }}%</small>
+                                                            <small class="badge bg-primary ms-1">-{{ $item['porcentaje_descuento'] }}%</small>
                                                         </div>
                                                     @else
                                                         <span class="fw-bold">
@@ -155,7 +155,7 @@
                                                         @endif
                                                     @endif
                                                 </td>
-                                                <td class="text-center fw-bold text-success subtotal-cell">
+                                                <td class="text-center fw-bold text-primary subtotal-cell">
                                                     {{ $totales['moneda_actual']['simbolo'] }}{{ number_format($item['precio_mostrar'] * $item['cantidad'], 2) }}
                                                     @if(isset($aceptaPagos) && !$aceptaPagos && $totales['moneda_actual']['codigo'] != 'USD')
                                                         <br>
@@ -181,7 +181,7 @@
                                 <i class="fas fa-shopping-cart fa-4x text-secondary mb-3"></i>
                                 <h5>Tu carrito está vacío</h5>
                                 <p class="text-secondary">¿No sabes qué comprar? ¡Miles de productos te esperan!</p>
-                                <a href="{{ route('producto.index') }}" class="btn btn-success">
+                                <a href="{{ route('producto.index') }}" class="btn btn-primary">
                                     <i class="fas fa-arrow-left me-2"></i>
                                     Ir a la tienda
                                 </a>
@@ -195,7 +195,7 @@
         <!-- Columna derecha: Resumen -->
         <div class="col-lg-4">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-receipt me-2"></i>
                         Resumen de compra
@@ -221,12 +221,12 @@
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Envío:</span>
-                        <span class="text-success">Calcular después</span>
+                        <span class="text-primary">Calcular después</span>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fw-bold fs-5">Total:</span>
-                        <span class="fw-bold fs-5 text-success" id="total-valor">
+                        <span class="fw-bold fs-5 text-primary" id="total-valor">
                             {{ $totales['moneda_actual']['simbolo'] ?? '$' }}{{ number_format($totales['total_actual'] ?? 0, 2) }}
                         </span>
                     </div>
@@ -240,11 +240,11 @@
 
                     <div id="botones-accion">
                         @if(isset($itemsProcesados) && count($itemsProcesados) > 0)
-                            <button class="btn btn-success btn-lg w-100 mb-2" onclick="procederAlPago()" id="btn-pagar">
+                            <button class="btn btn-primary btn-lg w-100 mb-2" onclick="procederAlPago()" id="btn-pagar">
                                 <i class="fas fa-arrow-right me-2"></i>
                                 Proceder al pago
                             </button>
-                            <button class="btn btn-outline-success w-100" onclick="seguirComprando()" id="btn-seguir-comprando">
+                            <button class="btn btn-outline-primary w-100" onclick="seguirComprando()" id="btn-seguir-comprando">
                                 <i class="fas fa-arrow-left me-2"></i>
                                 Seguir comprando
                             </button>
@@ -255,7 +255,7 @@
 
             <!-- Medios de pago -->
             <div class="card shadow-sm border-0 mt-4">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h6 class="mb-0">
                         <i class="fas fa-credit-card me-2"></i>
                         Medios de pago

@@ -4,10 +4,10 @@
 @section('page-title', 'Visualizando: ' . $producto->nombre)
 
 @section('content')
-<div class="container mt-4" style="height: 75vh">
+<div class="container mt-4">
     <div class="card shadow">
         {{-- Cabecera --}}
-        <div class="card-header bg-success text-white">
+        <div class="card-header bg-primary text-white">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h4 class="mb-1">

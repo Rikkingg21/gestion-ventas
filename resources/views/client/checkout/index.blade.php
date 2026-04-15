@@ -8,9 +8,9 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-success">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-success">Productos</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('carrito.ver') }}" class="text-success">Carrito</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-primary">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-primary">Productos</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('carrito.ver') }}" class="text-primary">Carrito</a></li>
             <li class="breadcrumb-item active" aria-current="page">Checkout</li>
         </ol>
     </nav>
@@ -30,13 +30,13 @@
         <!-- Columna principal: Formulario de pago -->
         <div class="col-lg-8">
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
                         <i class="fas fa-address-card me-2"></i>
                         Datos del Cliente
                     </h5>
                     @if(isset($monedaActual))
-                        <span class="badge bg-light text-success">
+                        <span class="badge bg-light text-primary">
                             <i class="fas fa-money-bill-wave me-1"></i>
                             {{ $monedaActual->simbolo }} {{ $monedaActual->codigo_iso }}
                         </span>
@@ -74,7 +74,7 @@
 
             <!-- Resumen del carrito -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-cart me-2"></i>
                         Resumen del Pedido
@@ -134,7 +134,7 @@
                                                     {{ $totales->moneda_actual->simbolo }}{{ number_format($precioOriginal, 2) }}
                                                 </span>
                                                 <br>
-                                                <span class="fw-bold text-success">
+                                                <span class="fw-bold text-primary">
                                                     {{ $totales->moneda_actual->simbolo }}{{ number_format($item->precio_mostrar, 2) }}
                                                 </span>
                                             @else
@@ -150,7 +150,7 @@
                                                 </small>
                                             @endif
                                         </td>
-                                        <td class="text-center fw-bold text-success">
+                                        <td class="text-center fw-bold text-primary">
                                             {{ $totales->moneda_actual->simbolo }}{{ number_format($item->subtotal_mostrar, 2) }}
                                             @if($totales->moneda_actual->codigo_iso != 'USD')
                                                 <br>
@@ -158,7 +158,7 @@
                                                     ≈ ${{ number_format($item->precio_unitario_usd * $item->cantidad, 2) }} USD
                                                 </small>
                                             @endif
-                                        </td>
+                                         </td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -168,7 +168,7 @@
             </div>
 
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-tag me-2"></i>
                         ¿Tienes un cupón de descuento?
@@ -189,7 +189,7 @@
                                     Quitar cupón
                                 </button>
                             @else
-                                <button class="btn btn-success w-100" onclick="aplicarCupon()" id="aplicarCuponBtn">
+                                <button class="btn btn-primary w-100" onclick="aplicarCupon()" id="aplicarCuponBtn">
                                     <i class="fas fa-check me-2"></i>
                                     Aplicar
                                 </button>
@@ -217,7 +217,7 @@
 
             <!-- Métodos de pago -->
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-credit-card me-2"></i>
                         Selecciona tu método de pago
@@ -338,7 +338,7 @@
                                                     @if(isset($detalles['tipo_cuenta']))
                                                         <div class="col-md-12 mb-2">
                                                             <small class="text-secondary">Tipo de cuenta:</small><br>
-                                                            <span class="badge bg-success">{{ $detalles['tipo_cuenta'] }}</span>
+                                                            <span class="badge bg-primary">{{ $detalles['tipo_cuenta'] }}</span>
                                                         </div>
                                                     @endif
                                                 </div>
@@ -365,7 +365,7 @@
 
                                             <!-- MONTO A PAGAR (todos los métodos) -->
                                             <div class="mt-3 pt-2 border-top">
-                                                <p class="mb-0 text-success">
+                                                <p class="mb-0 text-primary">
                                                     <i class="fas fa-money-bill-wave me-1"></i>
                                                     <strong>Monto a pagar:</strong> {{ $totales->total_actual_formateado }}
                                                     @if(!$aceptaPagos && isset($monedaACobrar))
@@ -436,8 +436,8 @@
                         <div class="form-check mb-3">
                             <input class="form-check-input" type="checkbox" name="terminos" id="terminos" value="1" required>
                             <label class="form-check-label" for="terminos">
-                                He leído y acepto los <a href="#" class="text-success">términos y condiciones</a> y la
-                                <a href="#" class="text-success">política de privacidad</a>
+                                He leído y acepto los <a href="#" class="text-primary">términos y condiciones</a> y la
+                                <a href="#" class="text-primary">política de privacidad</a>
                             </label>
                         </div>
                     </form>
@@ -449,7 +449,7 @@
         <div class="col-lg-4">
             <!-- Resumen de compra -->
             <div class="card shadow-sm border-0 mb-4">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-receipt me-2"></i>
                         Resumen
@@ -463,7 +463,7 @@
 
                     <!-- Descuento por cupón (si aplica) -->
                     @if(isset($totales->cupon_aplicado))
-                        <div class="d-flex justify-content-between mb-2 text-success">
+                        <div class="d-flex justify-content-between mb-2 text-primary">
                             <span class="text-secondary">Descuento cupón "{{ $totales->cupon_aplicado['codigo'] }}":</span>
                             <span class="fw-bold">-{{ $totales->descuento_aplicado_formateado }}</span>
                         </div>
@@ -471,12 +471,12 @@
 
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary">Envío:</span>
-                        <span class="text-success">Por calcular</span>
+                        <span class="text-primary">Por calcular</span>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fw-bold fs-5">Total a pagar:</span>
-                        <span class="fw-bold fs-5 text-success">{{ $totales->total_actual_formateado }}</span>
+                        <span class="fw-bold fs-5 text-primary">{{ $totales->total_actual_formateado }}</span>
                     </div>
 
                     <!-- Mostrar total en USD como referencia si la moneda actual no es USD -->
@@ -498,11 +498,11 @@
                         <small>Tu pedido será procesado una vez que confirmemos el pago. Recibirás un email con los detalles.</small>
                     </div>
 
-                    <button type="button" class="btn btn-success btn-lg w-100 mb-2" onclick="enviarSolicitudPago()" id="submitBtn">
+                    <button type="button" class="btn btn-primary btn-lg w-100 mb-2" onclick="enviarSolicitudPago()" id="submitBtn">
                         <i class="fas fa-check-circle me-2"></i>
                         Confirmar y solicitar pago
                     </button>
-                    <a href="{{ route('carrito.ver') }}" class="btn btn-outline-success w-100">
+                    <a href="{{ route('carrito.ver') }}" class="btn btn-outline-primary w-100">
                         <i class="fas fa-arrow-left me-2"></i>
                         Volver al carrito
                     </a>
@@ -513,7 +513,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body">
                     <h6 class="fw-bold mb-3">
-                        <i class="fas fa-headset text-success me-2"></i>
+                        <i class="fas fa-headset text-primary me-2"></i>
                         ¿Necesitas ayuda?
                     </h6>
                     <p class="text-secondary small mb-2">
@@ -521,15 +521,15 @@
                     </p>
                     <ul class="list-unstyled small">
                         <li class="mb-2">
-                            <i class="fab fa-whatsapp text-success me-2"></i>
+                            <i class="fab fa-whatsapp text-primary me-2"></i>
                             WhatsApp: +51 987 654 321
                         </li>
                         <li class="mb-2">
-                            <i class="fas fa-envelope text-success me-2"></i>
+                            <i class="fas fa-envelope text-primary me-2"></i>
                             Email: soporte@tienda.com
                         </li>
                         <li>
-                            <i class="fas fa-clock text-success me-2"></i>
+                            <i class="fas fa-clock text-primary me-2"></i>
                             Horario: Lun - Vie 9am - 6pm
                         </li>
                     </ul>
@@ -543,7 +543,7 @@
 <div class="modal fade" id="confirmModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">
                     <i class="fas fa-check-circle me-2"></i>
                     Solicitud enviada
@@ -551,17 +551,17 @@
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center py-4">
-                <i class="fas fa-check-circle text-success fa-4x mb-3"></i>
+                <i class="fas fa-check-circle text-primary fa-4x mb-3"></i>
                 <h6>¡Solicitud de pago enviada!</h6>
                 <p class="text-secondary mb-0" id="modalMessage">Hemos recibido tu solicitud. Te contactaremos cuando confirmemos el pago.</p>
                 <p class="text-secondary small mt-2">Recibirás un email con el número de seguimiento.</p>
             </div>
             <div class="modal-footer justify-content-center">
-                <a href="{{ route('producto.index') }}" class="btn btn-success" id="seguirComprandoBtn">
+                <a href="{{ route('producto.index') }}" class="btn btn-primary" id="seguirComprandoBtn">
                     <i class="fas fa-store me-2"></i>
                     Seguir comprando
                 </a>
-                <a href="{{ route('client.compras.index') }}" class="btn btn-outline-success" id="verComprasBtn">
+                <a href="{{ route('client.compras.index') }}" class="btn btn-outline-primary" id="verComprasBtn">
                     <i class="fas fa-box me-2"></i>
                     Ver mis compras
                 </a>
@@ -581,17 +581,17 @@
 .payment-option:hover {
     transform: translateY(-3px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    border-color: #065f46;
+    border-color: #0a58ca;
 }
 
 .payment-option.selected {
-    border-color: #065f46 !important;
-    background-color: #f0fdf4;
+    border-color: #0a58ca !important;
+    background-color: #e7f1ff;
 }
 
 .payment-option .form-check-input:checked {
-    background-color: #065f46;
-    border-color: #065f46;
+    background-color: #0a58ca;
+    border-color: #0a58ca;
 }
 
 .loader {

@@ -148,7 +148,7 @@ window.actualizarSidebarCarrito = function() {
                                                 </button>
                                             </div>
                                         `}
-                                        <span class="small fw-bold text-success">
+                                        <span class="small fw-bold text-primary">
                                             ${precioFormateado}
                                         </span>
                                     </div>

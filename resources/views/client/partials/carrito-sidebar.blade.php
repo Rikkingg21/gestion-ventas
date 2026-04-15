@@ -6,10 +6,10 @@
 @endphp
 
 <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-success text-white">
+    <div class="card-header bg-primary text-white">
         <h5 class="mb-0">
             <i class="fas fa-shopping-cart me-2"></i>Mi Carrito
-            <span class="badge bg-light text-success float-end" id="cartCount">{{ $totalItems }}</span>
+            <span class="badge bg-light text-primary float-end" id="cartCount">{{ $totalItems }}</span>
         </h5>
     </div>
     <div class="card-body p-0" id="cartContainer">
@@ -17,7 +17,7 @@
         <div id="cartItems" class="cart-items-list" style="max-height: 350px; overflow-y: auto;">
             @if($totalItems > 0)
                 <div class="text-center text-secondary py-4">
-                    <div class="spinner-border text-success" role="status">
+                    <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Cargando...</span>
                     </div>
                     <p class="mt-2 mb-0">Cargando carrito...</p>
@@ -35,13 +35,13 @@
         <div class="cart-summary p-3 border-top">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span class="text-secondary">Total:</span>
-                <span class="fw-bold text-success fs-5" id="cartTotal">
+                <span class="fw-bold text-primary fs-5" id="cartTotal">
                     {{ $moneda_actual->simbolo }}0.00
                 </span>
             </div>
 
             <a href="{{ route('carrito.ver') }}"
-               class="btn btn-success w-100 {{ $totalItems > 0 ? '' : 'disabled' }}"
+               class="btn btn-primary w-100 {{ $totalItems > 0 ? '' : 'disabled' }}"
                id="checkoutBtn">
                 <i class="fas fa-arrow-right me-2"></i>
                 Proceder al pago

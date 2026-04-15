@@ -8,7 +8,7 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-success">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-primary">Inicio</a></li>
             <li class="breadcrumb-item active" aria-current="page">Mis Compras</li>
         </ol>
     </nav>
@@ -16,7 +16,7 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-shopping-bag me-2"></i>
                         Historial de Solicitudes de Pago
@@ -28,7 +28,7 @@
                             <i class="fas fa-shopping-cart fa-4x text-secondary mb-3"></i>
                             <h5>No tienes solicitudes de pago registradas</h5>
                             <p class="text-secondary">¡Explora nuestros productos y realiza tu primera compra!</p>
-                            <a href="{{ route('producto.index') }}" class="btn btn-success">
+                            <a href="{{ route('producto.index') }}" class="btn btn-primary">
                                 <i class="fas fa-store me-2"></i>
                                 Ir a la tienda
                             </a>
@@ -100,7 +100,7 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                <span class="fw-bold text-success">
+                                                <span class="fw-bold text-primary">
                                                     {{ $simboloMoneda }} {{ number_format($solicitud->monto, 2) }}
                                                 </span>
                                             </td>
@@ -124,7 +124,7 @@
                                             </td>
                                             <td>
                                                 <a href="{{ route('client.compras.show', $solicitud->id) }}"
-                                                   class="btn btn-sm btn-outline-success">
+                                                   class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-eye me-1"></i>
                                                     Ver detalles
                                                 </a>

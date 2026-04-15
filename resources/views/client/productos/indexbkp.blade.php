@@ -36,13 +36,13 @@
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
                 <!-- Botones de filtro -->
                 <div class="d-flex gap-2 flex-wrap">
-                    <button class="btn btn-outline-primary active" data-filter="all">
+                    <button class="btn btn-outline-success active" data-filter="all">
                         <i class="fas fa-th-large me-2"></i>Todos
                     </button>
-                    <button class="btn btn-outline-primary" data-filter="fisico">
+                    <button class="btn btn-outline-success" data-filter="fisico">
                         <i class="fas fa-box me-2"></i>Físicos
                     </button>
-                    <button class="btn btn-outline-primary" data-filter="digital">
+                    <button class="btn btn-outline-success" data-filter="digital">
                         <i class="fas fa-cloud-download-alt me-2"></i>Digitales
                     </button>
                 </div>
@@ -51,17 +51,17 @@
                 <div class="d-flex align-items-center gap-3 flex-wrap">
                     @if(isset($monedaActual))
                     <span class="badge bg-light text-dark rounded-pill py-2 px-3">
-                        <i class="fas fa-money-bill-wave text-primary me-1"></i>
+                        <i class="fas fa-money-bill-wave text-success me-1"></i>
                         <strong>{{ $monedaActual->simbolo ?? '$' }} {{ $monedaActual->codigo_iso ?? 'USD' }}</strong>
                     </span>
                     @endif
 
                     <div class="input-group" style="width: 250px;">
-                        <span class="input-group-text bg-primary text-white border-0">
+                        <span class="input-group-text bg-success text-white border-0">
                             <i class="fas fa-search"></i>
                         </span>
                         <input type="text"
-                               class="form-control border-primary"
+                               class="form-control border-success"
                                id="searchProduct"
                                placeholder="Buscar productos...">
                     </div>
@@ -75,7 +75,7 @@
         <!-- Columna izquierda: Categorías (3 columnas) -->
         <div class="col-12 col-md-3 h-100 p-3 overflow-auto">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-primary text-white py-3 border-0">
+                <div class="card-header bg-success text-white py-3 border-0">
                     <h5 class="mb-0 fs-6">
                         <i class="fas fa-list me-2"></i>Categorías
                     </h5>
@@ -86,10 +86,10 @@
                             class="list-group-item list-group-item-action d-flex justify-content-between align-items-center category-link active border-0"
                             data-categoria="all">
                         <span>
-                            <i class="fas fa-th-large text-primary me-2"></i>
+                            <i class="fas fa-th-large text-success me-2"></i>
                             Todas las categorías
                         </span>
-                        <span class="badge bg-primary rounded-pill">{{ $categorias->sum('productos_count') }}</span>
+                        <span class="badge bg-success rounded-pill">{{ $categorias->sum('productos_count') }}</span>
                     </button>
 
                     @forelse($categorias as $categoria)
@@ -97,10 +97,10 @@
                                 class="list-group-item list-group-item-action d-flex justify-content-between align-items-center category-link border-0"
                                 data-categoria="{{ $categoria->id }}">
                             <span class="text-truncate">
-                                <i class="fas fa-tag text-primary me-2"></i>
+                                <i class="fas fa-tag text-success me-2"></i>
                                 {{ $categoria->nombre }}
                             </span>
-                            <span class="badge bg-primary rounded-pill">{{ $categoria->productos_count }}</span>
+                            <span class="badge bg-success rounded-pill">{{ $categoria->productos_count }}</span>
                         </button>
                     @empty
                         <div class="list-group-item text-center text-muted py-4 border-0">
@@ -108,7 +108,6 @@
                             <p class="mb-0 small">No hay categorías</p>
                         </div>
                     @endforelse
-
                 </div>
             </div>
         </div>
@@ -118,7 +117,7 @@
             <!-- Área de productos con scroll -->
             <div class="flex-grow-1 overflow-auto products-scroll-area" style="max-height: calc(100vh - 160px); overflow-y: auto; padding-right: 15px;">
                 <div id="productos-loader" class="text-center py-5 d-none">
-                    <div class="spinner-border text-primary" role="status">
+                    <div class="spinner-border text-success" role="status">
                         <span class="visually-hidden">Cargando...</span>
                     </div>
                     <p class="mt-2">Cargando productos...</p>
@@ -157,16 +156,16 @@
     border-radius: 10px;
 }
 .products-scroll-area::-webkit-scrollbar-thumb {
-    background: var(--bs-primary);
+    background: var(--bs-success);
     border-radius: 10px;
 }
 .products-scroll-area::-webkit-scrollbar-thumb:hover {
-    background: #0a58ca;
+    background: #146c43;
 }
 
 /* Efectos hover */
 .list-group-item-action:hover {
-    background-color: rgba(13, 110, 253, 0.05) !important;
+    background-color: rgba(40, 167, 69, 0.05) !important;
 }
 
 .product-card {
@@ -189,6 +188,9 @@
     scrollbar-width: thin;
 }
 
+/* ============================================ */
+/* SOLO MODIFICO ESTA PARTE PARA MÓVIL */
+/* ============================================ */
 @media (max-width: 768px) {
     /* Cambiar el contenedor principal a altura automática en móvil */
     .parent {
@@ -272,6 +274,9 @@
         font-size: 0.875rem;
     }
 }
+/* ============================================ */
+/* FIN DE LAS MODIFICACIONES */
+/* ============================================ */
 </style>
 
 <script>
@@ -432,12 +437,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             ${p.precios.tiene_descuento ? `
                                 <div class="d-flex align-items-baseline gap-2 flex-wrap">
                                     <span class="text-decoration-line-through text-muted small">${p.precios.original_formateado}</span>
-                                    <span class="h5 mb-0 text-primary fw-bold">${p.precios.con_descuento_formateado}</span>
+                                    <span class="h5 mb-0 text-success fw-bold">${p.precios.con_descuento_formateado}</span>
                                     <span class="badge bg-light text-dark">${p.precios.moneda.codigo}</span>
                                 </div>
                             ` : `
                                 <div class="d-flex align-items-baseline gap-2">
-                                    <span class="h5 mb-0 text-primary fw-bold">${p.precios.original_formateado}</span>
+                                    <span class="h5 mb-0 text-success fw-bold">${p.precios.original_formateado}</span>
                                     <span class="badge bg-light text-dark">${p.precios.moneda.codigo}</span>
                                 </div>
                             `}
@@ -450,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
 
                         <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-sm btn-outline-primary flex-grow-1"
+                            <button class="btn btn-sm btn-outline-success flex-grow-1"
                                     onclick="agregarAlCarrito(${p.id}, this)"
                                     ${p.stock.actual === 0 && p.tipo === 'fisico' ? 'disabled' : ''}>
                                 <i class="fas fa-cart-plus me-1"></i>Comprar

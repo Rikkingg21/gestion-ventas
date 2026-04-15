@@ -8,8 +8,8 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-success">Inicio</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-success">Productos</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('home') }}" class="text-primary">Inicio</a></li>
+            <li class="breadcrumb-item"><a href="{{ route('producto.index') }}" class="text-primary">Productos</a></li>
             <li class="breadcrumb-item active" aria-current="page">{{ $producto->nombre }}</li>
         </ol>
     </nav>
@@ -59,7 +59,7 @@
                             <!-- Etiquetas de estado -->
                             <div class="d-flex gap-2 mb-3 flex-wrap">
                                 @if($producto->created_at && $producto->created_at->diffInDays(now()) <= 30)
-                                    <span class="badge bg-success">Nuevo</span>
+                                    <span class="badge bg-primary">Nuevo</span>
                                 @endif
                                 @if($producto->esDigital())
                                     <span class="badge bg-info">Producto Digital</span>
@@ -84,15 +84,15 @@
                                         <span class="text-secondary text-decoration-line-through fs-5">
                                             {{ $precioInfo['precio_original_formateado'] }}
                                         </span>
-                                        <span class="fw-bold text-success fs-1">
+                                        <span class="fw-bold text-primary fs-1">
                                             {{ $precioInfo['precio_con_descuento_formateado'] }}
                                         </span>
-                                        <span class="badge bg-success fs-6 px-3 py-2">
+                                        <span class="badge bg-primary fs-6 px-3 py-2">
                                             Ahorra {{ $precioInfo['ahorro_formateado'] }}
                                         </span>
                                     </div>
                                 @else
-                                    <span class="fw-bold text-success fs-1">
+                                    <span class="fw-bold text-primary fs-1">
                                         {{ $precioInfo['precio_original_formateado'] }}
                                     </span>
                                 @endif
@@ -112,29 +112,29 @@
                                 <ul class="list-unstyled">
                                     @if($producto->esDigital())
                                         <li class="mb-2">
-                                            <i class="fas fa-cloud-download-alt text-success me-2"></i>
+                                            <i class="fas fa-cloud-download-alt text-primary me-2"></i>
                                             <strong>Tipo:</strong> Producto digital
                                         </li>
                                         <li class="mb-2">
-                                            <i class="fas fa-tachometer-alt text-success me-2"></i>
+                                            <i class="fas fa-tachometer-alt text-primary me-2"></i>
                                             <strong>Entrega:</strong> Descarga inmediata después de la compra
                                         </li>
                                         <li class="mb-2">
-                                            <i class="fas fa-infinity text-success me-2"></i>
+                                            <i class="fas fa-infinity text-primary me-2"></i>
                                             <strong>Stock:</strong> Ilimitado
                                         </li>
                                     @else
                                         <li class="mb-2">
-                                            <i class="fas fa-box text-success me-2"></i>
+                                            <i class="fas fa-box text-primary me-2"></i>
                                             <strong>Tipo:</strong> Producto físico
                                         </li>
                                         <li class="mb-2">
-                                            <i class="fas fa-truck text-success me-2"></i>
+                                            <i class="fas fa-truck text-primary me-2"></i>
                                             <strong>Envío:</strong> A todo el país
                                         </li>
                                         @if($producto->stock_actual !== null)
                                             <li class="mb-2">
-                                                <i class="fas fa-cubes text-success me-2"></i>
+                                                <i class="fas fa-cubes text-primary me-2"></i>
                                                 <strong>Stock disponible:</strong> {{ $producto->stock_actual }} unidades
                                             </li>
                                         @endif
@@ -146,7 +146,7 @@
                             @if($producto->esFisico())
                                 <div class="mb-4">
                                     @if($producto->stock_actual > 10)
-                                        <span class="badge bg-success py-2 px-3">
+                                        <span class="badge bg-primary py-2 px-3">
                                             <i class="fas fa-check-circle me-1"></i>
                                             {{ $producto->stock_actual }} unidades disponibles
                                         </span>
@@ -172,7 +172,7 @@
                                         Producto no disponible
                                     </button>
                                 @else
-                                    <button class="btn btn-success btn-lg" onclick="agregarAlCarrito({{ $producto->id }})">
+                                    <button class="btn btn-primary btn-lg" onclick="agregarAlCarrito({{ $producto->id }})">
                                         <i class="fas fa-cart-plus me-2"></i>
                                         Agregar al carrito
                                     </button>
