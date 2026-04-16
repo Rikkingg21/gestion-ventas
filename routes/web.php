@@ -61,12 +61,11 @@ Route::prefix('/')->name('client.')->group(function () {
         Route::get('/mis-compras/{id}', [App\Http\Controllers\Client\ComprasController::class, 'show'])->name('compras.show')->middleware('auth:client');
         Route::get('/comprobante/{hash}', [App\Http\Controllers\Client\ComprasController::class, 'verComprobante'])->name('comprobante.ver');
         Route::get('/comprobante/{hash}/descargar', [App\Http\Controllers\Client\ComprasController::class, 'descargarComprobante'])->name('comprobante.descargar');
-        Route::get('/mis-compras/{id_compras}/producto/{id_producto}/drive',
-    [App\Http\Controllers\Client\ComprasController::class, 'verArchivoDrive']
-)->name('comprobante.drive');
+        Route::get('/mis-compras/{id_compras}/producto/{id_producto}/drive', [App\Http\Controllers\Client\ComprasController::class, 'verArchivoDrive'])->name('comprobante.drive');
         // Perfil del cliente
         Route::get('/perfil', [App\Http\Controllers\Client\ProfileController::class, 'edit'])->name('profile.edit');
         Route::put('/perfil', [App\Http\Controllers\Client\ProfileController::class, 'update'])->name('profile.update');
+        Route::put('/perfil/password', [App\Http\Controllers\Client\ProfileController::class, 'updatePassword'])->name('profile.update-password');
     });
 });
 
