@@ -35,7 +35,7 @@
             <!-- Navbar Collapse -->
             <div class="collapse navbar-collapse" id="navbarMain">
                 <!-- Menú principal -->
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ">
                     <li class="nav-item">
                         <a class="nav-link {{ request()->routeIs('home') ? 'active text-primary fw-semibold' : 'text-dark' }}"
                            href="{{ route('home') }}">
@@ -48,16 +48,19 @@
                         @foreach($publicModules as $module)
                             @if($module->children->count() > 0)
                                 <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle text-dark" href="#"
-                                       id="navbarDropdown{{ $module->id }}"
-                                       role="button" data-bs-toggle="dropdown">
+                                    <a class="nav-link dropdown-toggle {{ $isModuleActive ? 'text-primary fw-semibold' : 'text-dark' }}
+                                            hover:text-primary transition"
+                                    href="#" id="navbarDropdown{{ $module->id }}"
+                                    role="button" data-bs-toggle="dropdown">
                                         <i class="fas {{ $module->icon ?: 'fa-cube' }} me-1"></i>
                                         {{ $module->name }}
                                     </a>
                                     <ul class="dropdown-menu border-0 shadow-sm">
                                         @foreach($module->children as $child)
                                             <li>
-                                                <a class="dropdown-item py-2" href="{{ url($child->route) }}">
+                                                <a class="dropdown-item py-2 {{ request()->url() === url($child->route) ? 'active bg-primary bg-opacity-10 text-primary' : '' }}
+                                                        hover:bg-primary hover:bg-opacity-10 hover:text-primary transition"
+                                                href="{{ url($child->route) }}">
                                                     <i class="fas {{ $child->icon ?: 'fa-circle' }} fa-xs me-2 text-primary"></i>
                                                     {{ $child->name }}
                                                 </a>
@@ -67,7 +70,9 @@
                                 </li>
                             @else
                                 <li class="nav-item">
-                                    <a class="nav-link text-dark" href="{{ url($module->route) }}">
+                                    <a class="nav-link {{ request()->url() === url($module->route) ? 'active text-primary fw-semibold' : 'text-dark' }}
+                                            hover:text-primary transition"
+                                    href="{{ url($module->route) }}">
                                         <i class="fas {{ $module->icon ?: 'fa-cube' }} me-1"></i>
                                         {{ $module->name }}
                                     </a>
@@ -122,7 +127,7 @@
                     <button class="btn btn-outline-primary dropdown-toggle d-flex align-items-center gap-2"
                             type="button"
                             data-bs-toggle="dropdown">
-                        <i class="fas fa-map-marker-alt text-primary"></i>
+                        <i class=""></i>
                         @if(isset($userGeoInfo['country']['code']) && $userGeoInfo['country']['code'] !== 'INT')
                             <span class="flag-icon flag-icon-{{ strtolower($userGeoInfo['country']['code']) }}"></span>
                         @else
