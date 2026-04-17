@@ -82,7 +82,7 @@ class User extends Authenticatable
     }
 
     // Verificar si el usuario tiene un permiso específico
-    public function canDo($permisoId, $moduleId = null)
+    public function canDo($permisoId, $moduleIdentifier = null)
     {
         if ($this->isSuperAdmin()) {
             return true;
@@ -91,30 +91,67 @@ class User extends Authenticatable
         // Si es admin
         if ($this->isAdmin()) {
             $query = $this->admin->permisos();
-            if ($moduleId) {
-                $query->where('module_id', $moduleId);
+
+            if ($moduleIdentifier) {
+                // Si es numérico, buscar por ID
+                if (is_numeric($moduleIdentifier)) {
+                    $query->where('module_id', $moduleIdentifier);
+                } else {
+                    // Si es string (slug), buscar el módulo por slug
+                    $module = Module::where('slug', $moduleIdentifier)->first();
+                    if ($module) {
+                        $query->where('module_id', $module->id);
+                    } else {
+                        return false;
+                    }
+                }
             }
+
             return $query->where('permiso_id', $permisoId)->exists();
         }
 
         // Si es staff
         if ($this->staff) {
             $query = $this->staff->permisos();
-            if ($moduleId) {
-                $query->where('module_id', $moduleId);
+
+            if ($moduleIdentifier) {
+                if (is_numeric($moduleIdentifier)) {
+                    $query->where('module_id', $moduleIdentifier);
+                } else {
+                    $module = Module::where('slug', $moduleIdentifier)->first();
+                    if ($module) {
+                        $query->where('module_id', $module->id);
+                    } else {
+                        return false;
+                    }
+                }
             }
+
             return $query->where('permiso_id', $permisoId)->exists();
         }
 
         return false;
     }
-    public function hasPermission($moduleId, $permisoId)
+    public function hasPermission($moduleIdentifier, $permisoId)
     {
         if ($this->isSuperAdmin()) {
             return true;
         }
 
-        // Si es admin (y estamos en contexto de admin)
+        $moduleId = null;
+
+        // Convertir slug a ID si es necesario
+        if (!is_numeric($moduleIdentifier)) {
+            $module = Module::where('slug', $moduleIdentifier)->first();
+            if (!$module) {
+                return false;
+            }
+            $moduleId = $module->id;
+        } else {
+            $moduleId = $moduleIdentifier;
+        }
+
+        // Si es admin
         if ($this->isAdmin()) {
             return $this->admin->permisos()
                 ->where('module_id', $moduleId)
@@ -122,7 +159,7 @@ class User extends Authenticatable
                 ->exists();
         }
 
-        // Si es staff (y estamos en contexto de staff)
+        // Si es staff
         if ($this->staff) {
             return $this->staff->permisos()
                 ->where('module_id', $moduleId)
@@ -133,28 +170,25 @@ class User extends Authenticatable
         return false;
     }
 
-    // Verificar si tiene permiso para crear (permiso_id = 1)
-    public function canCreate($moduloSlug)
+    // Actualiza los métodos
+    public function canCreate($moduleIdentifier)
     {
-        return $this->canDo(1, $moduloSlug);
+        return $this->canDo(1, $moduleIdentifier);
     }
 
-    // Verificar si tiene permiso para leer (permiso_id = 2)
-    public function canRead($moduleId)
+    public function canRead($moduleIdentifier)
     {
-        return $this->hasPermission($moduleId, 2);
+        return $this->hasPermission($moduleIdentifier, 2);
     }
 
-    // Verificar si tiene permiso para actualizar (permiso_id = 3)
-    public function canUpdate($moduleId)
+    public function canUpdate($moduleIdentifier)
     {
-        return $this->hasPermission($moduleId, 3);
+        return $this->hasPermission($moduleIdentifier, 3);
     }
 
-    // Verificar si tiene permiso para eliminar (permiso_id = 4)
-    public function canDelete($moduleId)
+    public function canDelete($moduleIdentifier)
     {
-        return $this->hasPermission($moduleId, 4);
+        return $this->hasPermission($moduleIdentifier, 4);
     }
 
     // Verificar si tiene permiso para un conjunto de acciones en un módulo

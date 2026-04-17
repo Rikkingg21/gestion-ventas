@@ -5,10 +5,11 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Module;
 
 class AdminMiddleware
 {
-    public function handle(Request $request, Closure $next, $permission = null, $moduleId = null)
+    public function handle(Request $request, Closure $next, $permission = null, $moduleSlug = null)
     {
         // Verificar autenticación
         if (!Auth::guard('admin')->check()) {
@@ -17,81 +18,103 @@ class AdminMiddleware
         }
 
         $user = Auth::guard('admin')->user();
+        $admin = $user->admin;
 
         // Verificar si tiene registro en admins
-        if (!$user->admin) {
+        if (!$admin) {
             Auth::guard('admin')->logout();
             return redirect()->route('admin.login')
                 ->withErrors(['username' => 'No tienes permisos de administrador.']);
         }
 
         // Verificar si el admin está activo
-        if (!$user->admin->is_active) {
+        if (!$admin->is_active) {
             Auth::guard('admin')->logout();
             return redirect()->route('admin.login')
                 ->withErrors(['username' => 'Tu cuenta de administrador está desactivada.']);
         }
 
         // Si es superadmin, permitir todo sin verificar permisos
-        if ($user->isSuperAdmin()) {
+        if ($admin->isSuperAdmin()) {
             return $next($request);
         }
 
-        // Si se requiere un permiso específico
-        if ($permission) {
-            $permisosMap = [
-                'crear' => 1,
-                'leer' => 2,
-                'actualizar' => 3,
-                'eliminar' => 4
-            ];
+        // Si no se requiere permiso específico, solo verificar autenticación
+        if (!$permission) {
+            return $next($request);
+        }
 
-            $permisoId = $permisosMap[$permission] ?? null;
+        // Mapeo de permisos
+        $permisosMap = [
+            'crear' => 1,
+            'leer' => 2,
+            'actualizar' => 3,
+            'eliminar' => 4
+        ];
 
-            if (!$permisoId) {
-                abort(403, 'Permiso no válido');
+        $permisoId = $permisosMap[$permission] ?? null;
+
+        if (!$permisoId) {
+            abort(403, 'Permiso no válido');
+        }
+
+        // Obtener el ID del módulo basado en el slug
+        $moduleId = null;
+
+        // Si se proporcionó un slug de módulo en el middleware
+        if ($moduleSlug) {
+            // Buscar el módulo por su slug
+            $module = Module::where('slug', $moduleSlug)->first();
+            if (!$module) {
+                abort(403, "Módulo con slug '{$moduleSlug}' no encontrado");
+            }
+            $moduleId = $module->id;
+        } else {
+            // Intentar obtener el slug de la URL
+            $path = $request->path();
+            $path = preg_replace('#^admin/#', '', $path);
+            $segments = explode('/', $path);
+            $urlSlug = $segments[0] ?? null;
+
+            // Excepciones para rutas especiales que no requieren módulo
+            $specialRoutes = ['dashboard', 'perfil', 'profile', 'logout'];
+            if (in_array($urlSlug, $specialRoutes)) {
+                return $next($request);
             }
 
-            // Si no se especificó moduleId, intentar obtenerlo de la URL
-            if (!$moduleId) {
-                // Obtener el path actual
-                $path = $request->path();
-
-                // Eliminar el prefijo 'admin/' si existe
-                if (str_starts_with($path, 'admin/')) {
-                    $path = substr($path, 6);
+            // Buscar el módulo por el slug de la URL
+            if ($urlSlug) {
+                $module = Module::where('slug', $urlSlug)->first();
+                if ($module) {
+                    $moduleId = $module->id;
+                } else {
+                    // Intentar buscar por nombre si no encuentra por slug
+                    $module = Module::where('name', $urlSlug)->first();
+                    if ($module) {
+                        $moduleId = $module->id;
+                    }
                 }
+            }
+        }
 
-                // Obtener el primer segmento
-                $segments = explode('/', $path);
-                $urlModule = $segments[0] ?? null;
+        // Si no se pudo determinar el módulo, mostrar error con información útil
+        if (!$moduleId) {
+            if (config('app.debug')) {
+                abort(403, "No se pudo determinar el módulo. Ruta: " . $request->path() . ", Slug recibido: " . ($moduleSlug ?? 'ninguno'));
+            }
+            abort(403, 'No se pudo determinar el módulo para verificar permisos.');
+        }
 
-                // Si es dashboard, permitir acceso
-                if ($urlModule === 'dashboard') {
-                    return $next($request);
-                }
-
-                // Si no podemos determinar el módulo, abortar
-                abort(403, 'No se especificó el ID del módulo para verificar permisos.');
+        // Verificar el permiso usando el modelo Admin directamente
+        if (!$admin->tienePermiso($moduleId, $permisoId)) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "No tienes permiso para '{$permission}' en este módulo."
+                ], 403);
             }
 
-            // Verificar que moduleId sea un número válido
-            if (!is_numeric($moduleId)) {
-                abort(403, 'El ID del módulo debe ser un número.');
-            }
-
-            // Verificar si tiene el permiso específico usando SOLO IDs
-            if (!$user->hasPermission((int)$moduleId, $permisoId)) {
-                // Para solicitudes AJAX
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'No tienes permiso para realizar esta acción.'
-                    ], 403);
-                }
-
-                abort(403, 'No tienes permiso para acceder a esta página.');
-            }
+            abort(403, "No tienes permiso para '{$permission}' en este módulo.");
         }
 
         return $next($request);

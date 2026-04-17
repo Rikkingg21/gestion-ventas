@@ -12,9 +12,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class ProductosController extends Controller
 {
+    private function getViewData($extra = [])
+    {
+        return array_merge([
+            'currentUser' => Auth::guard('admin')->user()
+        ], $extra);
+    }
     public function index(Request $request)
     {
         $query = Producto::with([
@@ -48,7 +55,7 @@ class ProductosController extends Controller
         // Obtener monedas para referencia (opcional)
         $monedas = Moneda::where('is_active', true)->get();
 
-        return view('admin.productos.index', compact('productos', 'categorias', 'monedas'));
+        return view('admin.productos.index', compact('productos', 'categorias', 'monedas'), $this->getViewData(compact('productos')));
     }
 
     public function create()

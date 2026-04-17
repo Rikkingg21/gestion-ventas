@@ -13,7 +13,7 @@
                 <div class="flex items-center">
                     <div class="flex-1">
                         <div class="text-white text-sm font-medium uppercase">Pendientes</div>
-                        <div class="text-white text-3xl font-bold">{{ $estadisticas['pendientes'] }}</div>
+                        <div class="text-white text-3xl font-bold">{{ $estadisticas['pendientes'] ?? 0 }}</div>
                     </div>
                     <div class="text-white opacity-50">
                         <i class="fas fa-clock text-4xl"></i>
@@ -28,7 +28,7 @@
                 <div class="flex items-center">
                     <div class="flex-1">
                         <div class="text-white text-sm font-medium uppercase">Aprobadas</div>
-                        <div class="text-white text-3xl font-bold">{{ $estadisticas['aprobadas'] }}</div>
+                        <div class="text-white text-3xl font-bold">{{ $estadisticas['aprobadas'] ?? 0 }}</div>
                     </div>
                     <div class="text-white opacity-50">
                         <i class="fas fa-check-circle text-4xl"></i>
@@ -43,7 +43,7 @@
                 <div class="flex items-center">
                     <div class="flex-1">
                         <div class="text-white text-sm font-medium uppercase">Rechazadas</div>
-                        <div class="text-white text-3xl font-bold">{{ $estadisticas['rechazadas'] }}</div>
+                        <div class="text-white text-3xl font-bold">{{ $estadisticas['rechazadas'] ?? 0 }}</div>
                     </div>
                     <div class="text-white opacity-50">
                         <i class="fas fa-times-circle text-4xl"></i>
@@ -53,7 +53,7 @@
         </div>
 
         <!-- Totales por Moneda -->
-        @foreach($estadisticas['totales_por_moneda'] as $total)
+        @forelse($estadisticas['totales_por_moneda'] as $total)
         <div class="bg-sky-500 rounded-lg shadow-lg overflow-hidden">
             <div class="p-5">
                 <div class="flex items-center">
@@ -69,9 +69,7 @@
                 </div>
             </div>
         </div>
-        @endforeach
-
-        @if($estadisticas['totales_por_moneda']->isEmpty())
+        @empty
         <div class="bg-gray-500 rounded-lg shadow-lg overflow-hidden">
             <div class="p-5">
                 <div class="flex items-center">
@@ -85,7 +83,7 @@
                 </div>
             </div>
         </div>
-        @endif
+        @endforelse
     </div>
 
     <!-- Filtros -->
@@ -275,11 +273,13 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-center">
+                                @if ($currentUser->canUpdate('solicitudes-pedidos'))
                                 <a href="{{ route('admin.solicitudes-pedidos.show', $solicitud->id) }}"
                                    class="inline-flex items-center px-3 py-1 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-sm transition duration-200">
                                     <i class="fas fa-eye mr-1"></i>
                                     Ver
                                 </a>
+                                @endif
                             </td>
                         </tr>
                     @empty

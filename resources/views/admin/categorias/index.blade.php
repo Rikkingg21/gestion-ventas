@@ -4,15 +4,18 @@
 @section('page-title', 'Gestión de Categorías')
 
 @section('content')
+
 <div class="bg-white rounded-lg shadow-lg">
     <div class="p-6 border-b border-gray-200">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <h3 class="text-lg font-semibold text-gray-800">Listado de Categorías</h3>
+            @if($currentUser->canCreate('categorias'))
             <a href="{{ route('admin.categorias.create') }}"
-               class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+            class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Nueva Categoría
             </a>
+            @endif
         </div>
     </div>
 
@@ -71,12 +74,14 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
 
+                        @if ($currentUser->canUpdate('categorias'))
                         <a href="{{ route('admin.categorias.edit', $categoria->id) }}"
                            class="text-yellow-600 hover:text-yellow-900 p-1"
                            title="Editar">
                             <i class="fas fa-edit"></i>
                         </a>
-                        @if($categoria->productos_count == 0)
+                        @endif
+                        @if ($currentUser->canDelete('categorias'))
                         <form action="{{ route('admin.categorias.destroy', $categoria->id) }}"
                               method="POST"
                               class="inline delete-form">
@@ -89,6 +94,7 @@
                                 <i class="fas fa-trash"></i>
                             </button>
                         </form>
+
                         @endif
                     </td>
                 </tr>

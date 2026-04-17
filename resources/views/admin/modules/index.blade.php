@@ -4,9 +4,6 @@
 @section('page-title', 'Gestión de Módulos')
 
 @section('content')
-@php
-    $currentUser = Auth::guard('admin')->user();
-@endphp
 
 <div class="container mx-auto px-4 py-6">
     <!-- Cabecera -->

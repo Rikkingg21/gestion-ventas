@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\SolicitudPago;
 use App\Models\SolicitudPagoEstado;
+use App\Models\MetodoPago;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -14,145 +15,201 @@ use Illuminate\Support\Facades\Storage;
 
 class SolicitudesPedidosController extends Controller
 {
-    public function index(Request $request)
+    private function getViewData($extra = [])
     {
-        $query = SolicitudPago::with([
-                'cliente',
-                'carrito.productos.producto',
-                'estados' => function($q) {
-                    $q->latest();
-                },
-                'moneda',
-                'metodoPago'  // ← CORREGIDO: agregar relación con método de pago
-            ])
-            ->latest();
+        return array_merge([
+            'currentUser' => Auth::guard('admin')->user()
+        ], $extra);
+    }
 
-        // Filtros
+    private function applyFilters($query, Request $request)
+    {
+        // Filtro por estado
         if ($request->filled('estado')) {
             $query->whereHas('estados', function($q) use ($request) {
                 $q->where('estado', $request->estado)
-                ->whereIn('id', function($sub) {
-                    $sub->select(DB::raw('MAX(id)'))
-                        ->from('solicitud_pagos_estados')
-                        ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
-                });
+                  ->whereIn('id', function($sub) {
+                      $sub->select(DB::raw('MAX(id)'))
+                          ->from('solicitud_pagos_estados')
+                          ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
+                  });
             });
         }
 
-        // CORREGIDO: filtrar por método de pago usando la relación
+        // Filtro por método de pago
         if ($request->filled('metodo_pago')) {
             $query->whereHas('metodoPago', function($q) use ($request) {
                 $q->where('slug', $request->metodo_pago);
             });
         }
 
-        // Fechas por defecto: últimos 3 meses hasta fin de mes actual
-        $fechaDesde = $request->fecha_desde
-            ? Carbon::parse($request->fecha_desde)->startOfDay()
-            : Carbon::now()->subMonths(3)->startOfMonth();
-
-        $fechaHasta = $request->fecha_hasta
-            ? Carbon::parse($request->fecha_hasta)->endOfDay()
-            : Carbon::now()->endOfMonth();
-
-        $query->whereBetween('created_at', [$fechaDesde, $fechaHasta]);
-
+        // Búsqueda general
         if ($request->filled('buscar')) {
             $search = $request->buscar;
             $query->where(function($q) use ($search) {
                 $q->where('id', 'LIKE', "%{$search}%")
-                ->orWhere('monto', 'LIKE', "%{$search}%")
-                ->orWhereHas('cliente', function($cq) use ($search) {
-                    $cq->where('nombre', 'LIKE', "%{$search}%")
-                        ->orWhere('apellidos', 'LIKE', "%{$search}%")
-                        ->orWhere('email', 'LIKE', "%{$search}%")
-                        ->orWhere('nro_documento', 'LIKE', "%{$search}%");
-                });
+                  ->orWhere('monto', 'LIKE', "%{$search}%")
+                  ->orWhereHas('cliente', function($cq) use ($search) {
+                      $cq->where('nombre', 'LIKE', "%{$search}%")
+                         ->orWhere('apellidos', 'LIKE', "%{$search}%")
+                         ->orWhere('email', 'LIKE', "%{$search}%")
+                         ->orWhere('nro_documento', 'LIKE', "%{$search}%");
+                  });
             });
         }
 
+        return $query;
+    }
+
+    private function getDateRange(Request $request)
+    {
+        return [
+            'desde' => $request->filled('fecha_desde')
+                ? Carbon::parse($request->fecha_desde)->startOfDay()
+                : Carbon::now()->subMonths(3)->startOfMonth(),
+            'hasta' => $request->filled('fecha_hasta')
+                ? Carbon::parse($request->fecha_hasta)->endOfDay()
+                : Carbon::now()->endOfMonth()
+        ];
+    }
+
+    private function getEstadisticas()
+    {
+        // Contar solicitudes por estado
+        $pendientes = SolicitudPago::whereHas('estados', function($q) {
+            $q->where('estado', 'solicitado')
+              ->whereIn('id', function($sub) {
+                  $sub->select(DB::raw('MAX(id)'))
+                      ->from('solicitud_pagos_estados')
+                      ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
+              });
+        })->count();
+
+        $aprobadas = SolicitudPago::whereHas('estados', function($q) {
+            $q->where('estado', 'aprobado')
+              ->whereIn('id', function($sub) {
+                  $sub->select(DB::raw('MAX(id)'))
+                      ->from('solicitud_pagos_estados')
+                      ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
+              });
+        })->count();
+
+        $rechazadas = SolicitudPago::whereHas('estados', function($q) {
+            $q->where('estado', 'rechazado')
+              ->whereIn('id', function($sub) {
+                  $sub->select(DB::raw('MAX(id)'))
+                      ->from('solicitud_pagos_estados')
+                      ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
+              });
+        })->count();
+
+        // Total de SOLO las aprobadas, agrupado por moneda
+        $totalesPorMoneda = SolicitudPago::whereHas('estados', function($q) {
+                $q->where('estado', 'aprobado')
+                  ->whereIn('id', function($sub) {
+                      $sub->select(DB::raw('MAX(id)'))
+                          ->from('solicitud_pagos_estados')
+                          ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
+                  });
+            })
+            ->with('moneda')
+            ->get()
+            ->groupBy('moneda_id')
+            ->map(function($grupo) {
+                $moneda = $grupo->first()->moneda;
+                return [
+                    'moneda' => $moneda ? $moneda->codigo_iso : 'DESCONOCIDA',
+                    'simbolo' => $moneda ? $moneda->simbolo : 'S/',
+                    'total' => $grupo->sum('monto')
+                ];
+            })
+            ->values();
+
+        return [
+            'pendientes' => $pendientes,
+            'aprobadas' => $aprobadas,
+            'rechazadas' => $rechazadas,
+            'total' => $pendientes + $aprobadas + $rechazadas,
+            'totales_por_moneda' => $totalesPorMoneda
+        ];
+    }
+
+    private function restoreStock($solicitud)
+    {
+        if (!$solicitud->carrito) return;
+
+        foreach ($solicitud->carrito->productos as $item) {
+            $producto = $item->producto;
+
+            if ($producto && $producto->esFisico() && $producto->stock) {
+                $producto->stock->aumentarStock($item->cantidad);
+
+                Log::info('Stock restaurado por rechazo', [
+                    'producto' => $producto->nombre,
+                    'cantidad' => $item->cantidad,
+                    'solicitud_id' => $solicitud->id
+                ]);
+            }
+        }
+    }
+
+    private function getImagePath($solicitud, $hash)
+    {
+        for ($i = 1; $i <= 3; $i++) {
+            $imagenCampo = 'imagen_' . $i;
+            if (isset($solicitud->$imagenCampo) && str_contains($solicitud->$imagenCampo, $hash)) {
+                return [
+                    'numero' => $i,
+                    'path' => storage_path('app/public/' . $solicitud->$imagenCampo)
+                ];
+            }
+        }
+        return null;
+    }
+
+    public function index(Request $request)
+    {
+        $query = SolicitudPago::with([
+            'cliente',
+            'carrito.productos.producto',
+            'estados' => fn($q) => $q->latest(),
+            'moneda',
+            'metodoPago'
+        ])->latest();
+
+        $query = $this->applyFilters($query, $request);
+
+        $fechas = $this->getDateRange($request);
+        $query->whereBetween('created_at', [$fechas['desde'], $fechas['hasta']]);
+
         $solicitudes = $query->paginate(15)->appends($request->all());
 
-        // Estadísticas mejoradas
-        $estadisticas = [
-            'pendientes' => SolicitudPago::whereHas('estados', function($q) {
-                $q->where('estado', 'solicitado')
-                ->whereIn('id', function($sub) {
-                    $sub->select(DB::raw('MAX(id)'))
-                        ->from('solicitud_pagos_estados')
-                        ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
-                });
-            })->count(),
+        $estadisticas = $this->getEstadisticas();
+        $metodosPago = MetodoPago::where('is_active', true)->get();
 
-            'aprobadas' => SolicitudPago::whereHas('estados', function($q) {
-                $q->where('estado', 'aprobado')
-                ->whereIn('id', function($sub) {
-                    $sub->select(DB::raw('MAX(id)'))
-                        ->from('solicitud_pagos_estados')
-                        ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
-                });
-            })->count(),
-
-            'rechazadas' => SolicitudPago::whereHas('estados', function($q) {
-                $q->where('estado', 'rechazado')
-                ->whereIn('id', function($sub) {
-                    $sub->select(DB::raw('MAX(id)'))
-                        ->from('solicitud_pagos_estados')
-                        ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
-                });
-            })->count(),
-
-            'total' => SolicitudPago::count(),
-
-            // Total de SOLO las aprobadas, agrupado por moneda
-            'totales_por_moneda' => SolicitudPago::whereHas('estados', function($q) {
-                    $q->where('estado', 'aprobado')
-                    ->whereIn('id', function($sub) {
-                        $sub->select(DB::raw('MAX(id)'))
-                            ->from('solicitud_pagos_estados')
-                            ->whereColumn('solicitud_pago_id', 'solicitud_pagos.id');
-                    });
-                })
-                ->with('moneda')
-                ->get()
-                ->groupBy('moneda_id')
-                ->map(function($grupo) {
-                    $moneda = $grupo->first()->moneda;
-                    return [
-                        'moneda' => $moneda ? $moneda->codigo_iso : 'DESCONOCIDA',
-                        'simbolo' => $moneda ? $moneda->simbolo : 'S/',
-                        'total' => $grupo->sum('monto')
-                    ];
-                })
-                ->values()
-        ];
-
-        // Obtener métodos de pago para el filtro
-        $metodosPago = \App\Models\MetodoPago::where('is_active', true)->get();
-
-        return view('admin.solicitudes-pedidos.index', compact('solicitudes', 'estadisticas', 'fechaDesde', 'fechaHasta', 'metodosPago'));
+        return view('admin.solicitudes-pedidos.index', array_merge(
+            $this->getViewData(compact('solicitudes', 'estadisticas', 'metodosPago')),
+            ['fechaDesde' => $fechas['desde'], 'fechaHasta' => $fechas['hasta']]
+        ));
     }
 
     public function show($id)
     {
         $solicitud = SolicitudPago::with([
-                'cliente',
-                'carrito.productos.producto',
-                'estados' => function($q) {
-                    $q->orderBy('created_at', 'desc');
-                },
-                'moneda',
-                'cupon',
-                'metodoPago'
-            ])
-            ->findOrFail($id);
+            'cliente',
+            'carrito.productos.producto',
+            'estados' => fn($q) => $q->orderBy('created_at', 'desc'),
+            'moneda',
+            'cupon',
+            'metodoPago'
+        ])->findOrFail($id);
 
         // Decodificar info_pago si es string
         if (is_string($solicitud->info_pago)) {
             $solicitud->info_pago = json_decode($solicitud->info_pago, true);
         }
 
-        return view('admin.solicitudes-pedidos.show', compact('solicitud'));
+        return view('admin.solicitudes-pedidos.show', $this->getViewData(compact('solicitud')));
     }
 
     public function updateEstado(Request $request, $id)
@@ -167,7 +224,7 @@ class SolicitudesPedidosController extends Controller
 
             $solicitud = SolicitudPago::with(['carrito.productos.producto'])->findOrFail($id);
 
-            // Verificar que la solicitud no tenga ya un estado final
+            // Verificar estado final
             $ultimoEstado = $solicitud->estados()->latest()->first();
             if ($ultimoEstado && in_array($ultimoEstado->estado, ['aprobado', 'rechazado'])) {
                 return response()->json([
@@ -185,21 +242,9 @@ class SolicitudesPedidosController extends Controller
                     : 'Solicitud rechazada por el administrador')
             ]);
 
-            // Si se rechaza, restaurar stock
+            // Restaurar stock si es rechazado
             if ($request->estado == 'rechazado') {
-                foreach ($solicitud->carrito->productos as $item) {
-                    $producto = $item->producto;
-
-                    if ($producto->esFisico() && $producto->stock) {
-                        $producto->stock->aumentarStock($item->cantidad);
-
-                        Log::info('Stock restaurado por rechazo', [
-                            'producto' => $producto->nombre,
-                            'cantidad' => $item->cantidad,
-                            'solicitud_id' => $solicitud->id
-                        ]);
-                    }
-                }
+                $this->restoreStock($solicitud);
             }
 
             DB::commit();
@@ -236,29 +281,15 @@ class SolicitudesPedidosController extends Controller
             abort(404, 'Comprobante no encontrado');
         }
 
-        // Determinar qué imagen es
-        $imagenNumero = null;
-        if (str_contains($solicitud->imagen_1 ?? '', $hash)) {
-            $imagenNumero = 1;
-        } elseif (str_contains($solicitud->imagen_2 ?? '', $hash)) {
-            $imagenNumero = 2;
-        } elseif (str_contains($solicitud->imagen_3 ?? '', $hash)) {
-            $imagenNumero = 3;
-        }
+        $imagenData = $this->getImagePath($solicitud, $hash);
 
-        if (!$imagenNumero) {
-            abort(404, 'Comprobante no encontrado');
-        }
-
-        $path = storage_path('app/public/' . $solicitud->{'imagen_' . $imagenNumero});
-
-        if (!file_exists($path)) {
+        if (!$imagenData || !file_exists($imagenData['path'])) {
             abort(404, 'El archivo no existe');
         }
 
         // Devolver la imagen
-        return response()->file($path, [
-            'Content-Type' => mime_content_type($path),
+        return response()->file($imagenData['path'], [
+            'Content-Type' => mime_content_type($imagenData['path']),
             'Content-Disposition' => 'inline; filename="comprobante_' . $solicitud->id . '.png"',
             'Cache-Control' => 'private, max-age=86400'
         ]);

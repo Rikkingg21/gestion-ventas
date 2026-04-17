@@ -8,11 +8,13 @@
     <div class="p-6 border-b border-gray-200">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <h3 class="text-lg font-semibold text-gray-800">Listado de Monedas</h3>
+            @if ($currentUser->canCreate('moneda'))
             <a href="{{ route('admin.moneda.create') }}"
                class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                 <i class="fas fa-plus mr-2"></i>
                 Nueva Moneda
             </a>
+            @endif
         </div>
     </div>
 
@@ -81,18 +83,21 @@
                         <span class="px-2 py-1 text-xs rounded-full {{ $moneda->is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
                             {{ $moneda->is_active ? 'Activo' : 'Inactivo' }}
                         </span>
-                        @if($moneda->acpetar_pagos)
+                        @if($moneda->aceptar_pagos)
                             <span class="ml-1 px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
                                 <i class="fas fa-credit-card mr-1"></i>Pagos
                             </span>
                         @endif
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                        @if ($currentUser->canUpdate('moneda'))
                         <a href="{{ route('admin.moneda.edit', $moneda->id) }}"
                            class="text-yellow-600 hover:text-yellow-900 p-1 inline-block"
                            title="Editar">
                             <i class="fas fa-edit"></i>
                         </a>
+                        @endif
+                        @if ($currentUser->canDelete('moneda'))
                         <form action="{{ route('admin.moneda.destroy', $moneda->id) }}"
                               method="POST"
                               class="inline delete-form">
@@ -105,6 +110,7 @@
                                 <i class="fas fa-trash"></i>
                             </button>
                         </form>
+                        @endif
                     </td>
                 </tr>
                 @empty
@@ -112,9 +118,11 @@
                     <td colspan="7" class="px-6 py-10 text-center text-gray-500">
                         <i class="fas fa-coins text-4xl mb-3 text-gray-300"></i>
                         <p>No hay monedas registradas</p>
-                        <a href="{{ route('admin.moneda.create') }}" class="text-indigo-600 hover:text-indigo-800 mt-2 inline-block">
-                            Crear primera moneda
-                        </a>
+                        @if ($currentUser->canCreate('moneda'))
+                            <a href="{{ route('admin.moneda.create') }}" class="text-indigo-600 hover:text-indigo-800 mt-2 inline-block">
+                                Crear primera moneda
+                            </a>
+                        @endif
                     </td>
                 </tr>
                 @endforelse

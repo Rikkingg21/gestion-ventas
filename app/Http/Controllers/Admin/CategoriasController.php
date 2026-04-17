@@ -7,130 +7,124 @@ use App\Models\Categoria;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class CategoriasController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    private function getViewData($extra = [])
     {
-        $query = Categoria::query();
-
-        // Búsqueda
-        if ($request->has('search') && !empty($request->search)) {
-            $query->where('nombre', 'like', '%' . $request->search . '%')
-                  ->orWhere('descripcion', 'like', '%' . $request->search . '%');
-        }
-
-        $categorias = $query->orderBy('nombre')->paginate(10);
-
-        return view('admin.categorias.index', compact('categorias'));
+        return array_merge([
+            'currentUser' => Auth::guard('admin')->user()
+        ], $extra);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    private function validateCategoria(Request $request, $categoria = null)
     {
-        return view('admin.categorias.create');
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'nombre' => 'required|string|max:100|unique:categorias,nombre',
-            'descripcion' => 'nullable|string|max:255',
-            'is_active' => 'boolean'
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        Categoria::create([
-            'nombre' => $request->nombre,
-            'descripcion' => $request->descripcion,
-            'is_active' => $request->has('is_active') ? true : false
-        ]);
-
-        return redirect()->route('admin.categorias.index')
-            ->with('success', 'Categoría creada exitosamente.');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        $categoria = Categoria::with('productos')->findOrFail($id);
-        return view('admin.categorias.show', compact('categoria'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        $categoria = Categoria::findOrFail($id);
-        return view('admin.categorias.edit', compact('categoria'));
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        $categoria = Categoria::findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
+        $rules = [
             'nombre' => [
                 'required',
                 'string',
                 'max:100',
-                Rule::unique('categorias')->ignore($categoria->id)
+                $categoria ? Rule::unique('categorias')->ignore($categoria->id) : 'unique:categorias,nombre'
             ],
             'descripcion' => 'nullable|string|max:255',
             'is_active' => 'boolean'
-        ]);
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
 
         if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
+            return $validator;
         }
 
-        $categoria->update([
+        return [
             'nombre' => $request->nombre,
             'descripcion' => $request->descripcion,
-            'is_active' => $request->has('is_active') ? true : false
-        ]);
-
-        return redirect()->route('admin.categorias.index')
-            ->with('success', 'Categoría actualizada exitosamente.');
+            'is_active' => $request->boolean('is_active')
+        ];
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    private function redirectWithMessage($message, $type = 'success')
+    {
+        return redirect()->route('admin.categorias.index')->with($type, $message);
+    }
+
+    public function index(Request $request)
+    {
+        $query = Categoria::query();
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('nombre', 'like', "%{$search}%")
+                  ->orWhere('descripcion', 'like', "%{$search}%");
+            });
+        }
+
+        $categorias = $query->orderBy('nombre')->paginate(10);
+
+        return view('admin.categorias.index', $this->getViewData(compact('categorias')));
+    }
+
+    public function create()
+    {
+        return view('admin.categorias.create', $this->getViewData());
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $this->validateCategoria($request);
+
+        if ($validated instanceof \Illuminate\Contracts\Validation\Validator) {
+            return redirect()->back()->withErrors($validated)->withInput();
+        }
+
+        Categoria::create($validated);
+
+        return $this->redirectWithMessage('Categoría creada exitosamente.');
+    }
+
+    public function show(string $id)
+    {
+        $categoria = Categoria::with('productos')->findOrFail($id);
+
+        return view('admin.categorias.show', $this->getViewData(compact('categoria')));
+    }
+
+    public function edit(string $id)
+    {
+        $categoria = Categoria::findOrFail($id);
+
+        return view('admin.categorias.edit', $this->getViewData(compact('categoria')));
+    }
+
+    public function update(Request $request, string $id)
+    {
+        $categoria = Categoria::findOrFail($id);
+        $validated = $this->validateCategoria($request, $categoria);
+
+        if ($validated instanceof \Illuminate\Contracts\Validation\Validator) {
+            return redirect()->back()->withErrors($validated)->withInput();
+        }
+
+        $categoria->update($validated);
+
+        return $this->redirectWithMessage('Categoría actualizada exitosamente.');
+    }
+
     public function destroy(string $id)
     {
         $categoria = Categoria::findOrFail($id);
 
-        // Verificar si tiene productos asociados
         if ($categoria->productos()->count() > 0) {
-            return redirect()->route('admin.categorias.index')
-                ->with('error', 'No se puede eliminar la categoría porque tiene productos asociados.');
+            return $this->redirectWithMessage(
+                'No se puede eliminar la categoría porque tiene productos asociados.',
+                'error'
+            );
         }
 
         $categoria->delete();
 
-        return redirect()->route('admin.categorias.index')
-            ->with('success', 'Categoría eliminada exitosamente.');
+        return $this->redirectWithMessage('Categoría eliminada exitosamente.');
     }
 }

@@ -8,9 +8,11 @@
     <div class="p-6 border-b border-gray-200">
         <div class="flex justify-between items-center">
             <h3 class="text-lg font-semibold text-gray-800">Listado de Productos</h3>
+            @if($currentUser->canCreate('productos'))
             <a href="{{ route('admin.productos.create') }}" class="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-4 py-2 rounded-lg hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
                 <i class="fas fa-plus mr-2"></i>Nuevo Producto
             </a>
+            @endif
         </div>
     </div>
 
@@ -192,11 +194,14 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-right space-x-3">
+                        @if($currentUser->canUpdate('productos'))
                         <a href="{{ route('admin.productos.edit', $producto->id) }}"
                            class="text-yellow-600 hover:text-yellow-900 transition-colors duration-200"
                            title="Editar producto">
                             <i class="fas fa-edit"></i>
                         </a>
+                        @endif
+                        @if($currentUser->canDelete('productos'))
                         <form action="{{ route('admin.productos.destroy', $producto->id) }}" method="POST" class="inline">
                             @csrf
                             @method('DELETE')
@@ -206,6 +211,7 @@
                                 <i class="fas fa-trash"></i>
                             </button>
                         </form>
+                        @endif
                     </td>
                 </tr>
                 @empty

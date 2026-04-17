@@ -33,16 +33,4 @@ class Permiso extends Model
     {
         return $this->hasMany(AdminPermiso::class);
     }
-
-    // Relación con staff_permisos
-    public function staffPermisos()
-    {
-        return $this->hasMany(StaffPermiso::class);
-    }
-
-    // Scope para buscar por nombre
-    public function scopeSearch($query, $search)
-    {
-        return $query->where('nombre', 'like', "%{$search}%");
-    }
 }

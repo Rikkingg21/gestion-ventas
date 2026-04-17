@@ -4,16 +4,7 @@
 @section('page-title', 'Crear Nuevo Módulo')
 
 @section('content')
-@php
-    $currentUser = Auth::guard('admin')->user();
-    $action = request()->route()->getName() === 'admin.modules.create' ? 'crear' : 'actualizar';
-@endphp
 
-@if(!$currentUser->canDo($action === 'crear' ? 1 : 3, 'modules'))
-    @php
-        abort(403, 'No tienes permiso para ' . $action . ' módulos.');
-    @endphp
-@endif
 <div class="container mx-auto px-4 py-6">
     <!-- Cabecera -->
     <div class="mb-6">
